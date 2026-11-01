@@ -11,6 +11,20 @@ class SpecRejected(Exception):
     """The spec is not approved, or its hash does not match."""
 
 
+class UnrecognizedPredicate(Exception):
+    """A grok mapping names an invokeWhen predicate this load cannot evaluate."""
+
+
+_NONBLANK_TEXT = "The source value is a string and contains a non-whitespace character."
+
+
+def _nonblank_text(value):
+    return isinstance(value, str) and any(not char.isspace() for char in value)
+
+
+_PREDICATES = {_NONBLANK_TEXT: _nonblank_text}
+
+
 def prepare(spec):
     approval = spec.get("approval") or {}
     if approval.get("status") != "approved" or not approval.get("specHash"):
@@ -24,6 +38,7 @@ def prepare(spec):
 def load(spec, source, database, grok, rejects):
     """Load source tables. Returns the number of Grok calls made in this run."""
     digest = prepare(spec)
+    _require_known_predicates(spec)
     cache = getattr(database, "grok_cache", None)
     if cache is None:
         cache = {}
@@ -129,10 +144,16 @@ def _embed(spec, source, owner, row, mappings, prefix):
         for item in mappings:
             if item["sourceTable"] != parent["sourceTable"] or item["transform"] != "copy":
                 continue
-            field = item["targetPath"].split(".", 1)[1]
-            _set_path(element, field, _value(spec, item, child))
+            _set_path(element, _element_field(item["targetPath"], prefix), _value(spec, item, child))
         elements.append(element)
     return elements
+
+
+def _element_field(target_path, prefix):
+    head = prefix + "."
+    if target_path.startswith(head) and len(target_path) > len(head):
+        return target_path[len(head):]
+    return target_path
 
 
 def _array_prefix(mappings):
@@ -150,10 +171,14 @@ def _lookup(spec, source, owner, row, other_table):
     for foreign_key in owner_table.get("foreignKeys", []):
         if foreign_key["referencesTable"] != other_table:
             continue
-        column = foreign_key["columns"][0]
-        referenced = foreign_key["referencesColumns"][0]
+        columns = foreign_key.get("columns") or []
+        referenced = foreign_key.get("referencesColumns") or []
+        if not columns or len(columns) != len(referenced):
+            raise ValueError(
+                f"{owner['sourceTable']} foreign key to {other_table} needs columns and referencesColumns of equal length"
+            )
         for candidate in source.get(other_table, []):
-            if candidate.get(referenced) == row.get(column):
+            if all(candidate.get(ref) == row.get(col) for col, ref in zip(columns, referenced)):
                 return candidate
     return None
 
@@ -189,11 +214,29 @@ def _classified_column(mappings, item):
     )
 
 
+def _require_known_predicates(spec):
+    for item in spec["fieldMapping"]["mappings"]:
+        if item.get("transform") != "grok":
+            continue
+        predicate = item.get("grok", {}).get("invokeWhen")
+        if predicate not in _PREDICATES:
+            raise UnrecognizedPredicate(_predicate_message(item, predicate))
+
+
+def _predicate_message(mapping, predicate):
+    return (
+        f"unrecognized invokeWhen for {mapping['targetCollection']}.{mapping['targetPath']}: "
+        f"{predicate}"
+    )
+
+
 def _invoke(mapping, value):
     predicate = mapping["grok"]["invokeWhen"]
-    if predicate == "The source value is a string and contains a non-whitespace character.":
-        return isinstance(value, str) and any(not char.isspace() for char in value)
-    return False
+    try:
+        check = _PREDICATES[predicate]
+    except KeyError as error:
+        raise UnrecognizedPredicate(_predicate_message(mapping, predicate)) from error
+    return check(value)
 
 
 def _classify(mapping, text, grok, cache, digest, row, owner):

@@ -4,7 +4,7 @@ import argparse
 import json
 import sys
 
-from migration.load import SpecRejected, load
+from migration.load import SpecRejected, UnrecognizedPredicate, load
 from migration.store import MemoryDatabase, MongoDatabase
 
 
@@ -37,7 +37,7 @@ def main(argv=None):
     rejects = []
     try:
         load(spec, source, database, _NotImplementedGrok(), rejects)
-    except SpecRejected as error:
+    except (SpecRejected, UnrecognizedPredicate) as error:
         print(str(error), file=sys.stderr)
         return 2
     with open(args.rejects, "w", encoding="utf-8") as handle:

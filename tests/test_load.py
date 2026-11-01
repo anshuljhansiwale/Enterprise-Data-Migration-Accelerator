@@ -10,7 +10,7 @@ from pathlib import Path
 
 from migration.__main__ import main
 from migration.hashing import spec_hash
-from migration.load import SpecRejected, load
+from migration.load import SpecRejected, UnrecognizedPredicate, _embed, _lookup, load
 from migration.runlog import install, log_run
 from migration.store import MemoryDatabase
 
@@ -281,6 +281,22 @@ class LoadTests(unittest.TestCase):
         self.assertEqual(rejects[1]["reason"], "sentiment is not an allowed value")
         self.assertEqual(database.count("customers"), 1)
 
+    def test_unknown_invoke_when_writes_nothing(self):
+        spec = copy.deepcopy(self.spec)
+        for item in spec["fieldMapping"]["mappings"]:
+            if item["transform"] == "grok":
+                item["grok"]["invokeWhen"] = "The source value is longer than 10 characters."
+        spec["approval"]["specHash"] = spec_hash(spec)
+        database = MemoryDatabase()
+        grok = StubGrok({NOTE: CLASSIFIED})
+        with self.assertRaises(UnrecognizedPredicate) as raised:
+            load(spec, source_rows(), database, grok, [])
+        self.assertIn("orders.notesClassification", str(raised.exception))
+        self.assertEqual(grok.calls, [])
+        self.assertEqual(database.docs, {})
+        self.assertEqual(database.indexes, [])
+        self.assertEqual(database.validators, {})
+
     def test_unapproved_or_mismatched_spec_writes_nothing(self):
         pending = copy.deepcopy(self.spec)
         pending["approval"] = {
@@ -312,6 +328,85 @@ class LoadTests(unittest.TestCase):
             self.assertEqual(main(["--spec", pending_path]), 2)
         finally:
             os.unlink(pending_path)
+
+    def test_embed_keeps_a_copy_path_without_a_dot(self):
+        spec = {
+            "relationalModel": {
+                "tables": [
+                    {
+                        "name": "order_lines",
+                        "columns": [
+                            {"name": "order_line_id", "dataType": "NUMBER(10)", "nullable": False},
+                            {"name": "note", "dataType": "VARCHAR2(40)", "nullable": True},
+                        ],
+                    }
+                ]
+            }
+        }
+        owner = {"sourceTable": "orders", "sourceColumn": "order_id"}
+        mappings = [
+            {
+                "sourceTable": "order_lines",
+                "sourceColumn": "order_id",
+                "targetPath": "_id",
+                "transform": "parent",
+            },
+            {
+                "sourceTable": "order_lines",
+                "sourceColumn": "order_line_id",
+                "targetPath": "lines.orderLineId",
+                "transform": "copy",
+            },
+            {
+                "sourceTable": "order_lines",
+                "sourceColumn": "note",
+                "targetPath": "metadata",
+                "transform": "copy",
+            },
+        ]
+        elements = _embed(
+            spec,
+            {"order_lines": [{"order_id": 9001, "order_line_id": 1, "note": "gift"}]},
+            owner,
+            {"order_id": 9001},
+            mappings,
+            "lines",
+        )
+        self.assertEqual(elements, [{"orderLineId": 1, "metadata": "gift"}])
+
+    def test_lookup_matches_every_foreign_key_column(self):
+        spec = {
+            "relationalModel": {
+                "tables": [
+                    {
+                        "name": "orders",
+                        "foreignKeys": [
+                            {
+                                "columns": ["customer_id", "tenant_id"],
+                                "referencesTable": "customers",
+                                "referencesColumns": ["customer_id", "tenant_id"],
+                            }
+                        ],
+                    }
+                ]
+            }
+        }
+        found = _lookup(
+            spec,
+            {
+                "customers": [
+                    {"customer_id": 42, "tenant_id": 2, "full_name": "Wrong"},
+                    {"customer_id": 42, "tenant_id": 1, "full_name": "Right"},
+                ]
+            },
+            {"sourceTable": "orders"},
+            {"customer_id": 42, "tenant_id": 1},
+            "customers",
+        )
+        self.assertEqual(found["full_name"], "Right")
+        spec["relationalModel"]["tables"][0]["foreignKeys"][0]["referencesColumns"] = ["customer_id"]
+        with self.assertRaises(ValueError):
+            _lookup(spec, {"customers": []}, {"sourceTable": "orders"}, {}, "customers")
 
     def test_run_log_keeps_each_spec_hash(self):
         with tempfile.TemporaryDirectory() as tmp:
