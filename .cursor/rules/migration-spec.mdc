@@ -13,6 +13,8 @@ Run a load only when `approval.status` is `approved` and the recomputed spec has
 
 For the order-management spec the allowed collections are `customers`, `addresses`, `products`, and `orders`. The only Grok call is `orders.notes` to `notesClassification`. The script creates `type_1_priceCents_1` and `customer.customerId_1_placedAt_-1`.
 
+Each finished test run writes `runs/<specHash>/<loggedAt>/` with that hash, the approved spec, the tests, and the results. A new hash is a new directory. That folder is a log. It is not a collection, an index, or a Grok call.
+
 ```javascript
 // Outside the spec: new collection, extra Grok field, unrequested index
 db.reviews.insertOne(doc)

@@ -9,7 +9,9 @@ from datetime import datetime
 from pathlib import Path
 
 from migration.__main__ import main
+from migration.hashing import spec_hash
 from migration.load import SpecRejected, load
+from migration.runlog import install, log_run
 from migration.store import MemoryDatabase
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -310,6 +312,55 @@ class LoadTests(unittest.TestCase):
             self.assertEqual(main(["--spec", pending_path]), 2)
         finally:
             os.unlink(pending_path)
+
+    def test_run_log_keeps_each_spec_hash(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            folder = log_run(
+                self.spec,
+                [ROOT / "tests" / "test_load.py"],
+                [
+                    {
+                        "id": "tests.test_load.LoadTests.test_mappings_indexes_and_rerun",
+                        "status": "passed",
+                    }
+                ],
+                root=root,
+                logged_at="2026-11-01T11-30-00Z",
+                output="Ran 1 test\n\nOK\n",
+            )
+            digest = self.spec["approval"]["specHash"]
+            self.assertEqual(folder.parent.name, digest)
+            self.assertEqual((folder / "spec-hash.txt").read_text(encoding="utf-8").strip(), digest)
+            stored = json.loads((folder / "approved-spec.json").read_text(encoding="utf-8"))
+            self.assertEqual(spec_hash(stored), digest)
+            self.assertIn("def test_mappings_indexes_and_rerun", (folder / "tests" / "test_load.py").read_text(encoding="utf-8"))
+            results = json.loads((folder / "results.json").read_text(encoding="utf-8"))
+            self.assertTrue(results["ok"])
+            self.assertEqual(results["testsRun"], 1)
+            self.assertIn("OK", (folder / "results.txt").read_text(encoding="utf-8"))
+
+            changed = copy.deepcopy(self.spec)
+            changed["documentModel"]["collections"][0]["purpose"] += " revised"
+            changed["approval"]["specHash"] = spec_hash(changed)
+            other = log_run(
+                changed,
+                [ROOT / "tests" / "test_load.py"],
+                [{"id": "tests.test_load.LoadTests.test_mappings_indexes_and_rerun", "status": "failed", "detail": "boom"}],
+                root=root,
+                logged_at="2026-11-01T11-31-00Z",
+            )
+            self.assertNotEqual(other.parent.name, folder.parent.name)
+            self.assertFalse(json.loads((other / "results.json").read_text(encoding="utf-8"))["ok"])
+
+            rejected = copy.deepcopy(self.spec)
+            rejected["approval"]["specHash"] = "0" * 64
+            with self.assertRaises(SpecRejected):
+                log_run(rejected, [], [], root=root, logged_at="2026-11-01T11-32-00Z")
+            self.assertFalse((root / "runs" / ("0" * 64)).exists())
+
+
+install(SPEC_PATH, [Path(__file__)], ROOT)
 
 
 if __name__ == "__main__":

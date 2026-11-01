@@ -1,0 +1,35 @@
+{
+  "specHash": "e1c0c5cf130e3cd5471a811e7a5b3c0e529d8438348e7f5ba611382474347fba",
+  "loggedAt": "2026-11-01T11-31-31-938301Z",
+  "testFiles": [
+    "test_load.py"
+  ],
+  "testsRun": 5,
+  "passed": 5,
+  "failures": 0,
+  "errors": 0,
+  "skipped": 0,
+  "ok": true,
+  "cases": [
+    {
+      "id": "tests.test_load.LoadTests.test_cli_checks_the_hash_before_a_load",
+      "status": "passed"
+    },
+    {
+      "id": "tests.test_load.LoadTests.test_invalid_grok_output_is_rejected_and_not_loaded",
+      "status": "passed"
+    },
+    {
+      "id": "tests.test_load.LoadTests.test_mappings_indexes_and_rerun",
+      "status": "passed"
+    },
+    {
+      "id": "tests.test_load.LoadTests.test_run_log_keeps_each_spec_hash",
+      "status": "passed"
+    },
+    {
+      "id": "tests.test_load.LoadTests.test_unapproved_or_mismatched_spec_writes_nothing",
+      "status": "passed"
+    }
+  ]
+}

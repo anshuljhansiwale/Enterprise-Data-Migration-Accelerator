@@ -46,6 +46,7 @@ Implement the approved spec in Node.js or Python, one of them, and name the choi
 - Validate every model response against that mapping's `targetShape`. On failure, append one JSON line to the reject file (`sourceTable`, `primaryKey`, `targetCollection`, `targetPath`, `reason`, `rawModelOutput`) and do not write that source row.
 - Cache a valid Grok result by `specHash`, source primary key, target path, and a hash of the source text.
 - Tests use a stub Grok client. Cover the mappings, a rejected Grok payload, a second run that does not duplicate documents, the `create: true` indexes, the hash refusal, and a source-count to document-count comparison that leaves rejected rows unloaded.
+- When the tests finish, log that run under `runs/<specHash>/<loggedAt>/`. Write `spec-hash.txt`, `approved-spec.json`, a copy of the test files, `results.json`, and `results.txt`. A new spec hash gets a new directory. The same hash keeps every later run. This log is not a collection, an index, or a Grok call. `python -m unittest discover -s tests -t .` writes it.
 
 ## Validate before starting the agent
 

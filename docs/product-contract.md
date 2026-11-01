@@ -53,7 +53,7 @@ Each stage appends only the sections it owns. Once the next stage starts, earlie
 | Schema Optimization Specialist | `documentModel`, `fieldMapping` | `relationalModel` |
 | Performance & Indexing | `indexPlan` | `relationalModel.accessPaths`, `documentModel`, `fieldMapping` |
 | Migration architect | `approval` | The four sections above |
-| Cursor Agent Handoff | Script and tests, through one Cursor cloud agent | The approved spec, its skill, and the project rule |
+| Cursor Agent Handoff | Script, tests, and `runs/<specHash>/`, through one Cursor cloud agent | The approved spec, its skill, and the project rule |
 
 ## Migration Spec
 
@@ -77,7 +77,7 @@ The architect reviews three things:
 
 The architect may edit any section before approving. Each edit is listed in `approval.changes`. On approval, `approval.specHash` is the SHA-256 of the canonical JSON of the spec excluding `approval`, as defined in [spec-format.md](spec-format.md). A rejected spec has no hash and is not handed off.
 
-The cloud agent receives the hash. It implements that spec only. If the spec in the working tree hashes differently, the agent stops. The agent writes a batch migration and tests. It adds no collection, index, or Grok call the spec does not name.
+The cloud agent receives the hash. It implements that spec only. If the spec in the working tree hashes differently, the agent stops. The agent writes a batch migration and tests. It adds no collection, index, or Grok call the spec does not name. When those tests finish, the run is logged under `runs/<specHash>/<loggedAt>/`: the hash, the approved spec, the test files, and the results. A new hash is a new directory.
 
 Grok output is validated against the mapping's target shape before any write. A value that fails validation sends that source row to the reject file. The row is not written to the target collection.
 

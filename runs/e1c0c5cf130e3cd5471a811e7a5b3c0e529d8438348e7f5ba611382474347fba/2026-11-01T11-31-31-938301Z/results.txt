@@ -1,0 +1,10 @@
+tests.test_load.LoadTests.test_cli_checks_the_hash_before_a_load ... passed
+tests.test_load.LoadTests.test_invalid_grok_output_is_rejected_and_not_loaded ... passed
+tests.test_load.LoadTests.test_mappings_indexes_and_rerun ... passed
+tests.test_load.LoadTests.test_run_log_keeps_each_spec_hash ... passed
+tests.test_load.LoadTests.test_unapproved_or_mismatched_spec_writes_nothing ... passed
+
+Ran 5 tests
+passed 5, failures 0, errors 0, skipped 0
+
+OK
