@@ -1,0 +1,26 @@
+---
+description: Migration scripts implement the approved Migration Spec and add nothing it does not name.
+alwaysApply: true
+---
+
+# Migration spec is the source of truth
+
+Read `docs/spec-format.md` before writing a spec section or a migration script. Section ownership is in `docs/product-contract.md`.
+
+A script may upsert a collection named in `documentModel.collections`, create an index only when that entry has `create: true`, call Grok only for a mapping with `transform: "grok"`, and install the validator in `documentModel.collections[].validation`.
+
+Run a load only when `approval.status` is `approved` and the recomputed spec hash matches `approval.specHash`. A row that fails the Grok target shape goes to the reject file. That row is not written.
+
+For the order-management spec the allowed collections are `customers`, `addresses`, `products`, and `orders`. The only Grok call is `orders.notes` to `notesClassification`. The script creates `type_1_priceCents_1` and `customer.customerId_1_placedAt_-1`.
+
+```javascript
+// Outside the spec: new collection, extra Grok field, unrequested index
+db.reviews.insertOne(doc)
+classify(customer.fullName)
+db.addresses.createIndex({ customerId: 1 })
+
+// Inside the spec
+db.orders.updateOne({ _id }, { $set: orderDoc }, { upsert: true })
+classify(order.notes)
+db.products.createIndex({ type: 1, priceCents: 1 }, { name: "type_1_priceCents_1" })
+```
