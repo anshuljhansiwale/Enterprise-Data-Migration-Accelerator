@@ -1,5 +1,27 @@
 """Target databases. Tests use memory. A URI uses one MongoClient with driver defaults."""
 
+import json
+
+_clients = {}
+
+
+def _identity(doc_id):
+    """Hashable identity for a scalar or compound _id."""
+    if isinstance(doc_id, dict):
+        return json.dumps(doc_id, sort_keys=True, separators=(",", ":"), ensure_ascii=False)
+    return doc_id
+
+
+def _mongo_client(uri):
+    """One client per process. Driver defaults: this batch has no pool or timeout measurements."""
+    client = _clients.get(uri)
+    if client is None:
+        from pymongo import MongoClient
+
+        client = MongoClient(uri)
+        _clients[uri] = client
+    return client
+
 
 class MemoryDatabase:
     def __init__(self):
@@ -9,13 +31,13 @@ class MemoryDatabase:
 
     def upsert(self, collection, document):
         self.docs.setdefault(collection, {})
-        self.docs[collection][document["_id"]] = document
+        self.docs[collection][_identity(document["_id"])] = document
 
     def count(self, collection):
         return len(self.docs.get(collection, {}))
 
     def get(self, collection, doc_id):
-        return self.docs.get(collection, {}).get(doc_id)
+        return self.docs.get(collection, {}).get(_identity(doc_id))
 
     def create_index(self, collection, keys, name, partial_filter=None):
         self.indexes = [
@@ -38,15 +60,13 @@ class MemoryDatabase:
 
 class MongoDatabase:
     def __init__(self, uri, database):
-        from pymongo import MongoClient
-
-        self.client = MongoClient(uri)
+        self.client = _mongo_client(uri)
         self.db = self.client[database]
 
     def upsert(self, collection, document):
-        self.db[collection].update_one(
+        self.db[collection].replace_one(
             {"_id": document["_id"]},
-            {"$set": document},
+            document,
             upsert=True,
         )
 
@@ -63,8 +83,12 @@ class MongoDatabase:
         self.db[collection].create_index(list(keys.items()), **kwargs)
 
     def set_validator(self, collection, validation):
-        validator = {"$jsonSchema": validation}
+        options = {
+            "validator": {"$jsonSchema": validation},
+            "validationLevel": "strict",
+            "validationAction": "error",
+        }
         if collection in self.db.list_collection_names():
-            self.db.command("collMod", collection, validator=validator)
+            self.db.command("collMod", collection, **options)
         else:
-            self.db.create_collection(collection, validator=validator)
+            self.db.create_collection(collection, **options)

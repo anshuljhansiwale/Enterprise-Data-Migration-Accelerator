@@ -1,0 +1,11 @@
+tests.test_branch_ledger.LoadTests.test_approved_hash_and_cli_refusal ... passed
+tests.test_branch_ledger.LoadTests.test_fixture_rows_cover_relational_columns ... passed
+tests.test_branch_ledger.LoadTests.test_grok_cache_uses_spec_hash_primary_key_and_text ... passed
+tests.test_branch_ledger.LoadTests.test_mappings_index_and_rerun ... passed
+tests.test_branch_ledger.LoadTests.test_rejected_grok_payload_is_unloaded ... passed
+tests.test_branch_ledger.LoadTests.test_unapproved_or_mismatched_spec_writes_nothing ... passed
+
+Ran 6 tests
+passed 6, failures 0, errors 0, skipped 0
+
+OK

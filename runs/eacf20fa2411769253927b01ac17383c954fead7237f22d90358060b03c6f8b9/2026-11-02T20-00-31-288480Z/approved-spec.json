@@ -1,0 +1,781 @@
+{
+  "specVersion": "1",
+  "relationalModel": {
+    "sourceSystem": "oracle",
+    "sourceFile": "fixtures/branch-ledger/source.sql",
+    "tables": [
+      {
+        "name": "institutions",
+        "columns": [
+          {
+            "name": "institution_id",
+            "dataType": "NUMBER(10)",
+            "nullable": false
+          },
+          {
+            "name": "name",
+            "dataType": "VARCHAR2(200)",
+            "nullable": false
+          }
+        ],
+        "primaryKey": [
+          "institution_id"
+        ],
+        "cardinalityNote": "institutions: about 40 rows."
+      },
+      {
+        "name": "accounts",
+        "columns": [
+          {
+            "name": "institution_id",
+            "dataType": "NUMBER(10)",
+            "nullable": false
+          },
+          {
+            "name": "account_number",
+            "dataType": "VARCHAR2(34)",
+            "nullable": false
+          },
+          {
+            "name": "title",
+            "dataType": "VARCHAR2(200)",
+            "nullable": false
+          },
+          {
+            "name": "currency_code",
+            "dataType": "CHAR(3)",
+            "nullable": false
+          },
+          {
+            "name": "opened_at",
+            "dataType": "TIMESTAMP",
+            "nullable": false
+          }
+        ],
+        "primaryKey": [
+          "institution_id",
+          "account_number"
+        ],
+        "foreignKeys": [
+          {
+            "columns": [
+              "institution_id"
+            ],
+            "referencesTable": "institutions",
+            "referencesColumns": [
+              "institution_id"
+            ]
+          }
+        ],
+        "cardinalityNote": "accounts: about 2000000 rows. Identity is the institution plus the account number."
+      },
+      {
+        "name": "account_signers",
+        "columns": [
+          {
+            "name": "signer_id",
+            "dataType": "NUMBER(10)",
+            "nullable": false
+          },
+          {
+            "name": "institution_id",
+            "dataType": "NUMBER(10)",
+            "nullable": false
+          },
+          {
+            "name": "account_number",
+            "dataType": "VARCHAR2(34)",
+            "nullable": false
+          },
+          {
+            "name": "full_name",
+            "dataType": "VARCHAR2(200)",
+            "nullable": false
+          },
+          {
+            "name": "role_name",
+            "dataType": "VARCHAR2(40)",
+            "nullable": false
+          },
+          {
+            "name": "is_active",
+            "dataType": "NUMBER(1)",
+            "nullable": false,
+            "notes": "DEFAULT 1. CHECK (is_active IN (0, 1))"
+          }
+        ],
+        "primaryKey": [
+          "signer_id"
+        ],
+        "foreignKeys": [
+          {
+            "columns": [
+              "institution_id",
+              "account_number"
+            ],
+            "referencesTable": "accounts",
+            "referencesColumns": [
+              "institution_id",
+              "account_number"
+            ]
+          }
+        ],
+        "cardinalityNote": "account_signers: about 2 per account on average. History is retained. No declared upper bound. Signer changes are independent of the account title."
+      },
+      {
+        "name": "journal_entries",
+        "columns": [
+          {
+            "name": "entry_id",
+            "dataType": "NUMBER(12)",
+            "nullable": false
+          },
+          {
+            "name": "institution_id",
+            "dataType": "NUMBER(10)",
+            "nullable": false
+          },
+          {
+            "name": "account_number",
+            "dataType": "VARCHAR2(34)",
+            "nullable": false
+          },
+          {
+            "name": "posted_at",
+            "dataType": "TIMESTAMP",
+            "nullable": false
+          },
+          {
+            "name": "memo",
+            "dataType": "CLOB",
+            "nullable": true,
+            "notes": "memo is free text from the bookkeeper. It has no schema."
+          }
+        ],
+        "primaryKey": [
+          "entry_id"
+        ],
+        "foreignKeys": [
+          {
+            "columns": [
+              "institution_id",
+              "account_number"
+            ],
+            "referencesTable": "accounts",
+            "referencesColumns": [
+              "institution_id",
+              "account_number"
+            ]
+          }
+        ],
+        "cardinalityNote": "journal_entries: about 20000000 rows. memo is free text from the bookkeeper. It has no schema."
+      },
+      {
+        "name": "journal_lines",
+        "columns": [
+          {
+            "name": "line_id",
+            "dataType": "NUMBER(12)",
+            "nullable": false
+          },
+          {
+            "name": "entry_id",
+            "dataType": "NUMBER(12)",
+            "nullable": false
+          },
+          {
+            "name": "side",
+            "dataType": "VARCHAR2(6)",
+            "nullable": false,
+            "notes": "CHECK (side IN ('debit', 'credit'))"
+          },
+          {
+            "name": "amount_cents",
+            "dataType": "NUMBER(14)",
+            "nullable": false
+          }
+        ],
+        "primaryKey": [
+          "line_id"
+        ],
+        "foreignKeys": [
+          {
+            "columns": [
+              "entry_id"
+            ],
+            "referencesTable": "journal_entries",
+            "referencesColumns": [
+              "entry_id"
+            ]
+          }
+        ],
+        "cardinalityNote": "journal_lines: average 2 per entry, observed maximum 8."
+      }
+    ],
+    "accessPaths": [
+      {
+        "id": "q-entry-by-id",
+        "statement": "Given a journal entry id, return that entry, its lines, and the account title stored with the entry.",
+        "needs": [
+          "entry",
+          "lines",
+          "account title"
+        ]
+      },
+      {
+        "id": "q-recent-entries-by-account",
+        "statement": "List an account's journal entries from most recent to oldest.",
+        "needs": [
+          "institution id on the entry",
+          "account number on the entry",
+          "posted-at timestamp"
+        ]
+      }
+    ]
+  },
+  "documentModel": {
+    "collections": [
+      {
+        "name": "institutions",
+        "purpose": "Institution reference data. One document per institutions row, referenced from accounts.",
+        "pattern": "reference-target",
+        "example": {
+          "_id": 12,
+          "name": "Sample Institution"
+        },
+        "validation": {
+          "bsonType": "object",
+          "required": [
+            "_id",
+            "name"
+          ],
+          "additionalProperties": false,
+          "properties": {
+            "_id": {
+              "bsonType": "long"
+            },
+            "name": {
+              "bsonType": "string"
+            }
+          }
+        }
+      },
+      {
+        "name": "accounts",
+        "purpose": "Living account record. One document per accounts row. The composite source key becomes a compound _id.",
+        "pattern": "entity",
+        "example": {
+          "_id": {
+            "institutionId": 12,
+            "accountNumber": "GB00SAMP00000000000001"
+          },
+          "title": "Sample Operating Account",
+          "currencyCode": "GBP",
+          "openedAt": "2021-03-01T00:00:00Z"
+        },
+        "validation": {
+          "bsonType": "object",
+          "required": [
+            "_id",
+            "title",
+            "currencyCode",
+            "openedAt"
+          ],
+          "additionalProperties": false,
+          "properties": {
+            "_id": {
+              "bsonType": "object",
+              "required": [
+                "institutionId",
+                "accountNumber"
+              ],
+              "additionalProperties": false,
+              "properties": {
+                "institutionId": {
+                  "bsonType": "long"
+                },
+                "accountNumber": {
+                  "bsonType": "string"
+                }
+              }
+            },
+            "title": {
+              "bsonType": "string"
+            },
+            "currencyCode": {
+              "bsonType": "string",
+              "minLength": 3,
+              "maxLength": 3
+            },
+            "openedAt": {
+              "bsonType": "date"
+            }
+          }
+        }
+      },
+      {
+        "name": "accountSigners",
+        "purpose": "Signer history. One document per account_signers row, referencing its account by the compound key.",
+        "pattern": "reference-target",
+        "example": {
+          "_id": 501,
+          "accountId": {
+            "institutionId": 12,
+            "accountNumber": "GB00SAMP00000000000001"
+          },
+          "fullName": "Sample Signer",
+          "roleName": "primary",
+          "isActive": true
+        },
+        "validation": {
+          "bsonType": "object",
+          "required": [
+            "_id",
+            "accountId",
+            "fullName",
+            "roleName",
+            "isActive"
+          ],
+          "additionalProperties": false,
+          "properties": {
+            "_id": {
+              "bsonType": "long"
+            },
+            "accountId": {
+              "bsonType": "object",
+              "required": [
+                "institutionId",
+                "accountNumber"
+              ],
+              "additionalProperties": false,
+              "properties": {
+                "institutionId": {
+                  "bsonType": "long"
+                },
+                "accountNumber": {
+                  "bsonType": "string"
+                }
+              }
+            },
+            "fullName": {
+              "bsonType": "string"
+            },
+            "roleName": {
+              "bsonType": "string"
+            },
+            "isActive": {
+              "bsonType": "bool"
+            }
+          }
+        }
+      },
+      {
+        "name": "journalEntries",
+        "purpose": "One document per journal_entries row, with embedded lines and an account snapshot.",
+        "pattern": "entity",
+        "example": {
+          "_id": 700001,
+          "account": {
+            "institutionId": 12,
+            "accountNumber": "GB00SAMP00000000000001",
+            "title": "Sample Operating Account"
+          },
+          "postedAt": "2026-10-30T09:15:00Z",
+          "lines": [
+            {
+              "lineId": 1,
+              "side": "debit",
+              "amountCents": 125000
+            },
+            {
+              "lineId": 2,
+              "side": "credit",
+              "amountCents": 125000
+            }
+          ],
+          "memoRaw": "Monthly service fee reversed after branch review.",
+          "memoClassification": {
+            "entryCategory": "fee",
+            "summary": "Reversal of a monthly service fee after review."
+          }
+        },
+        "validation": {
+          "bsonType": "object",
+          "required": [
+            "_id",
+            "account",
+            "postedAt",
+            "lines"
+          ],
+          "additionalProperties": false,
+          "properties": {
+            "_id": {
+              "bsonType": "long"
+            },
+            "account": {
+              "bsonType": "object",
+              "required": [
+                "institutionId",
+                "accountNumber",
+                "title"
+              ],
+              "additionalProperties": false,
+              "properties": {
+                "institutionId": {
+                  "bsonType": "long"
+                },
+                "accountNumber": {
+                  "bsonType": "string"
+                },
+                "title": {
+                  "bsonType": "string"
+                }
+              }
+            },
+            "postedAt": {
+              "bsonType": "date"
+            },
+            "lines": {
+              "bsonType": "array",
+              "maxItems": 100,
+              "items": {
+                "bsonType": "object",
+                "required": [
+                  "lineId",
+                  "side",
+                  "amountCents"
+                ],
+                "additionalProperties": false,
+                "properties": {
+                  "lineId": {
+                    "bsonType": "long"
+                  },
+                  "side": {
+                    "enum": [
+                      "debit",
+                      "credit"
+                    ]
+                  },
+                  "amountCents": {
+                    "bsonType": "long"
+                  }
+                }
+              }
+            },
+            "memoRaw": {
+              "bsonType": "string"
+            },
+            "memoClassification": {
+              "bsonType": "object",
+              "required": [
+                "entryCategory",
+                "summary"
+              ],
+              "additionalProperties": false,
+              "properties": {
+                "entryCategory": {
+                  "enum": [
+                    "payment",
+                    "transfer",
+                    "fee",
+                    "interest",
+                    "adjustment",
+                    "other"
+                  ]
+                },
+                "summary": {
+                  "bsonType": "string",
+                  "maxLength": 280
+                }
+              }
+            }
+          }
+        }
+      }
+    ],
+    "relationships": [
+      {
+        "id": "rel-journal-lines",
+        "from": "journal_lines",
+        "to": "journalEntries",
+        "decision": "embed",
+        "why": "q-entry-by-id returns lines with the entry. Cardinality is about 2 per entry, observed maximum 8, so the array is bounded with maxItems 100.",
+        "risks": [
+          "An entry that splits across more than 100 lines would fail validation and push the document size up. Split lines out under the outlier pattern if that workload appears."
+        ]
+      },
+      {
+        "id": "rel-entry-account",
+        "from": "accounts",
+        "to": "journalEntries",
+        "decision": "embed",
+        "snapshot": true,
+        "fields": [
+          "account.institutionId",
+          "account.accountNumber",
+          "account.title"
+        ],
+        "why": "q-entry-by-id needs the account title on the entry, and q-recent-entries-by-account needs the institution id and account number on the entry. The living account stays in accounts.",
+        "risks": [
+          "The source entry stores only institution_id and account_number, so the title snapshot written by this migration is the account row at migration time, which can differ from the title when the entry was posted.",
+          "Later edits to accounts must leave existing entry snapshots unchanged. Entries posted after cutover snapshot the account at posting."
+        ]
+      },
+      {
+        "id": "rel-account-signers",
+        "from": "account_signers",
+        "to": "accounts",
+        "decision": "reference",
+        "why": "Signer history is retained with no declared upper bound and changes independently of the account title. No access path needs signers with the account.",
+        "risks": [
+          "A screen that shows an account with its signers takes a second read on accountSigners.accountId. That access path is not in this workload."
+        ]
+      },
+      {
+        "id": "rel-account-institution",
+        "from": "accounts",
+        "to": "institutions",
+        "decision": "reference",
+        "why": "No access path needs the institution body. The account keeps institutionId inside its compound _id.",
+        "risks": []
+      }
+    ]
+  },
+  "indexPlan": {
+    "workloadProvided": true,
+    "indexes": [
+      {
+        "collection": "journalEntries",
+        "keys": {
+          "_id": 1
+        },
+        "name": "_id_",
+        "servesQuery": "q-entry-by-id",
+        "evidence": "stated-query",
+        "create": false
+      },
+      {
+        "collection": "journalEntries",
+        "keys": {
+          "account.institutionId": 1,
+          "account.accountNumber": 1,
+          "postedAt": -1
+        },
+        "name": "account.institutionId_1_account.accountNumber_1_postedAt_-1",
+        "servesQuery": "q-recent-entries-by-account",
+        "evidence": "stated-query",
+        "create": true
+      }
+    ],
+    "notes": "Two access paths were stated and each gets one entry. q-entry-by-id is a point read on journalEntries._id, which the default _id_ index already serves, so nothing is created; lines and the account title snapshot are embedded, so it needs no other index. q-recent-entries-by-account matches both parts of the composite account key on the snapshot paths account.institutionId and account.accountNumber, then sorts by postedAt descending, so the index returns entries most recent first with no in-memory sort. The migration creates one index. Evidence is stated-query for both because no measured slow-query log was supplied. Foreign keys get no index because no access path uses them: accountSigners.accountId and the institution reference inside accounts._id. The accounts composite primary key becomes the compound _id, which the default index already covers, and the source has no UNIQUE constraint to promote. No partial filter is used because neither query restricts to a subset of documents."
+  },
+  "fieldMapping": {
+    "mappings": [
+      {
+        "sourceTable": "institutions",
+        "sourceColumn": "institution_id",
+        "targetCollection": "institutions",
+        "targetPath": "_id",
+        "transform": "copy"
+      },
+      {
+        "sourceTable": "institutions",
+        "sourceColumn": "name",
+        "targetCollection": "institutions",
+        "targetPath": "name",
+        "transform": "copy"
+      },
+      {
+        "sourceTable": "accounts",
+        "sourceColumn": "institution_id",
+        "targetCollection": "accounts",
+        "targetPath": "_id.institutionId",
+        "transform": "copy"
+      },
+      {
+        "sourceTable": "accounts",
+        "sourceColumn": "account_number",
+        "targetCollection": "accounts",
+        "targetPath": "_id.accountNumber",
+        "transform": "copy"
+      },
+      {
+        "sourceTable": "accounts",
+        "sourceColumn": "title",
+        "targetCollection": "accounts",
+        "targetPath": "title",
+        "transform": "copy"
+      },
+      {
+        "sourceTable": "accounts",
+        "sourceColumn": "title",
+        "targetCollection": "journalEntries",
+        "targetPath": "account.title",
+        "transform": "snapshot"
+      },
+      {
+        "sourceTable": "accounts",
+        "sourceColumn": "currency_code",
+        "targetCollection": "accounts",
+        "targetPath": "currencyCode",
+        "transform": "copy"
+      },
+      {
+        "sourceTable": "accounts",
+        "sourceColumn": "opened_at",
+        "targetCollection": "accounts",
+        "targetPath": "openedAt",
+        "transform": "copy"
+      },
+      {
+        "sourceTable": "account_signers",
+        "sourceColumn": "signer_id",
+        "targetCollection": "accountSigners",
+        "targetPath": "_id",
+        "transform": "copy"
+      },
+      {
+        "sourceTable": "account_signers",
+        "sourceColumn": "institution_id",
+        "targetCollection": "accountSigners",
+        "targetPath": "accountId.institutionId",
+        "transform": "copy"
+      },
+      {
+        "sourceTable": "account_signers",
+        "sourceColumn": "account_number",
+        "targetCollection": "accountSigners",
+        "targetPath": "accountId.accountNumber",
+        "transform": "copy"
+      },
+      {
+        "sourceTable": "account_signers",
+        "sourceColumn": "full_name",
+        "targetCollection": "accountSigners",
+        "targetPath": "fullName",
+        "transform": "copy"
+      },
+      {
+        "sourceTable": "account_signers",
+        "sourceColumn": "role_name",
+        "targetCollection": "accountSigners",
+        "targetPath": "roleName",
+        "transform": "copy"
+      },
+      {
+        "sourceTable": "account_signers",
+        "sourceColumn": "is_active",
+        "targetCollection": "accountSigners",
+        "targetPath": "isActive",
+        "transform": "copy",
+        "valueConversion": "zero-one-to-boolean"
+      },
+      {
+        "sourceTable": "journal_entries",
+        "sourceColumn": "entry_id",
+        "targetCollection": "journalEntries",
+        "targetPath": "_id",
+        "transform": "copy"
+      },
+      {
+        "sourceTable": "journal_entries",
+        "sourceColumn": "institution_id",
+        "targetCollection": "journalEntries",
+        "targetPath": "account.institutionId",
+        "transform": "snapshot"
+      },
+      {
+        "sourceTable": "journal_entries",
+        "sourceColumn": "account_number",
+        "targetCollection": "journalEntries",
+        "targetPath": "account.accountNumber",
+        "transform": "snapshot"
+      },
+      {
+        "sourceTable": "journal_entries",
+        "sourceColumn": "posted_at",
+        "targetCollection": "journalEntries",
+        "targetPath": "postedAt",
+        "transform": "copy"
+      },
+      {
+        "sourceTable": "journal_entries",
+        "sourceColumn": "memo",
+        "targetCollection": "journalEntries",
+        "targetPath": "memoRaw",
+        "transform": "copy"
+      },
+      {
+        "sourceTable": "journal_entries",
+        "sourceColumn": "memo",
+        "targetCollection": "journalEntries",
+        "targetPath": "memoClassification",
+        "transform": "grok",
+        "grok": {
+          "invokeWhen": "The source value is a string and contains a non-whitespace character.",
+          "targetShape": {
+            "$schema": "https://json-schema.org/draft/2020-12/schema",
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "entryCategory",
+              "summary"
+            ],
+            "properties": {
+              "entryCategory": {
+                "type": "string",
+                "enum": [
+                  "payment",
+                  "transfer",
+                  "fee",
+                  "interest",
+                  "adjustment",
+                  "other"
+                ]
+              },
+              "summary": {
+                "type": "string",
+                "maxLength": 280
+              }
+            }
+          }
+        }
+      },
+      {
+        "sourceTable": "journal_lines",
+        "sourceColumn": "line_id",
+        "targetCollection": "journalEntries",
+        "targetPath": "lines.lineId",
+        "transform": "copy"
+      },
+      {
+        "sourceTable": "journal_lines",
+        "sourceColumn": "entry_id",
+        "targetCollection": "journalEntries",
+        "targetPath": "_id",
+        "transform": "parent"
+      },
+      {
+        "sourceTable": "journal_lines",
+        "sourceColumn": "side",
+        "targetCollection": "journalEntries",
+        "targetPath": "lines.side",
+        "transform": "copy"
+      },
+      {
+        "sourceTable": "journal_lines",
+        "sourceColumn": "amount_cents",
+        "targetCollection": "journalEntries",
+        "targetPath": "lines.amountCents",
+        "transform": "copy"
+      }
+    ]
+  },
+  "approval": {
+    "status": "approved",
+    "approver": "Anshul Jhansiwale",
+    "approvedAt": "2026-11-02T19:49:02Z",
+    "changes": [],
+    "specHash": "eacf20fa2411769253927b01ac17383c954fead7237f22d90358060b03c6f8b9"
+  }
+}

@@ -43,9 +43,20 @@ def main(argv=None):
     with open(args.rejects, "w", encoding="utf-8") as handle:
         for line in rejects:
             handle.write(json.dumps(line) + "\n")
+    counts = getattr(database, "load_counts", [])
+    for row in counts:
+        print(
+            f"{row['sourceTable']} source={row['sourceRows']} documents={row['documents']} "
+            f"rejected={row['rejected']} unloadedWithParent={row['unloadedWithParent']}"
+        )
     for name in database.docs if isinstance(database, MemoryDatabase) else []:
         print(f"{name} {database.count(name)}")
-    return 0
+    mismatch = [
+        row
+        for row in counts
+        if row["documents"] + row["rejected"] + row["unloadedWithParent"] != row["sourceRows"]
+    ]
+    return 1 if mismatch else 0
 
 
 class _NotImplementedGrok:

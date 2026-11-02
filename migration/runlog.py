@@ -10,7 +10,7 @@ from pathlib import Path
 from migration.load import prepare
 
 
-_state = {"installed": False}
+_state = {"hooked": False, "suites": []}
 
 
 def log_run(spec, test_paths, cases, *, root, logged_at=None, output=""):
@@ -61,7 +61,7 @@ def record_result(result, spec_path, test_paths, root):
     selected = [
         test_id
         for test_id in getattr(result, "_migration_events", [])
-        if _is_load_case(test_id)
+        if _belongs(test_id, test_paths)
     ]
     if not selected:
         return None
@@ -71,13 +71,17 @@ def record_result(result, spec_path, test_paths, root):
 
 
 def install(spec_path, test_paths, root):
-    """After the load tests finish, write their run folder."""
-    if _state["installed"]:
+    """After the load tests finish, write their run folder. Each spec logs its own cases."""
+    suite = {
+        "spec_path": str(spec_path),
+        "test_paths": [str(path) for path in test_paths],
+        "root": root,
+    }
+    if suite not in _state["suites"]:
+        _state["suites"].append(suite)
+    if _state["hooked"]:
         return
-    _state["installed"] = True
-    _state["spec_path"] = spec_path
-    _state["test_paths"] = list(test_paths)
-    _state["root"] = root
+    _state["hooked"] = True
     original_start = unittest.TestResult.startTest
     original_stop = unittest.TestResult.stopTestRun
 
@@ -94,17 +98,21 @@ def install(spec_path, test_paths, root):
         if os.environ.get("MIGRATION_RUNLOG") == "0" or getattr(self, "_migration_logged", False):
             return
         self._migration_logged = True
-        try:
-            record_result(self, _state["spec_path"], _state["test_paths"], _state["root"])
-        except Exception as error:
-            print(f"run log was not written: {error}", file=sys.stderr)
+        for item in _state["suites"]:
+            try:
+                record_result(self, item["spec_path"], item["test_paths"], item["root"])
+            except Exception as error:
+                print(f"run log was not written: {error}", file=sys.stderr)
 
     unittest.TestResult.startTest = startTest
     unittest.TestResult.stopTestRun = stopTestRun
 
 
-def _is_load_case(test_id):
-    return ".LoadTests." in test_id
+def _belongs(test_id, test_paths):
+    if ".LoadTests." not in test_id:
+        return False
+    stems = {Path(path).stem for path in test_paths}
+    return bool(stems.intersection(test_id.split(".")))
 
 
 def _cases(result, selected):

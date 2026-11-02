@@ -1,0 +1,39 @@
+{
+  "specHash": "eacf20fa2411769253927b01ac17383c954fead7237f22d90358060b03c6f8b9",
+  "loggedAt": "2026-11-02T20-00-31-288480Z",
+  "testFiles": [
+    "test_branch_ledger.py"
+  ],
+  "testsRun": 6,
+  "passed": 6,
+  "failures": 0,
+  "errors": 0,
+  "skipped": 0,
+  "ok": true,
+  "cases": [
+    {
+      "id": "tests.test_branch_ledger.LoadTests.test_approved_hash_and_cli_refusal",
+      "status": "passed"
+    },
+    {
+      "id": "tests.test_branch_ledger.LoadTests.test_fixture_rows_cover_relational_columns",
+      "status": "passed"
+    },
+    {
+      "id": "tests.test_branch_ledger.LoadTests.test_grok_cache_uses_spec_hash_primary_key_and_text",
+      "status": "passed"
+    },
+    {
+      "id": "tests.test_branch_ledger.LoadTests.test_mappings_index_and_rerun",
+      "status": "passed"
+    },
+    {
+      "id": "tests.test_branch_ledger.LoadTests.test_rejected_grok_payload_is_unloaded",
+      "status": "passed"
+    },
+    {
+      "id": "tests.test_branch_ledger.LoadTests.test_unapproved_or_mismatched_spec_writes_nothing",
+      "status": "passed"
+    }
+  ]
+}

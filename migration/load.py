@@ -60,17 +60,66 @@ def load(spec, source, database, grok, rejects):
             calls += call_count
             if document is not None:
                 database.upsert(collection["name"], document)
+    database.load_counts = compare_source_counts(spec, source, database, rejects)
     return calls
+
+
+def _collection_mappings(spec, collection_name):
+    return [
+        item
+        for item in spec["fieldMapping"]["mappings"]
+        if item["targetCollection"] == collection_name
+    ]
+
+
+def _id_copy_mappings(mappings):
+    return [
+        item
+        for item in mappings
+        if item["transform"] == "copy"
+        and (item["targetPath"] == "_id" or item["targetPath"].startswith("_id."))
+    ]
+
+
+def _owner_mapping(mappings):
+    copies = _id_copy_mappings(mappings)
+    if not copies:
+        raise ValueError("collection has no _id mapping")
+    tables = {item["sourceTable"] for item in copies}
+    if len(tables) != 1:
+        raise ValueError("document _id must come from one source table")
+    exact = [item for item in copies if item["targetPath"] == "_id"]
+    if len(exact) > 1:
+        raise ValueError("collection has more than one scalar _id mapping")
+    return exact[0] if exact else copies[0]
+
+
+def _primary_key(spec, table_name, row):
+    columns = _table(spec, table_name)["primaryKey"]
+    if len(columns) == 1:
+        return row.get(columns[0])
+    return {column: row.get(column) for column in columns}
+
+
+def _hashable(value):
+    if isinstance(value, dict):
+        return tuple(sorted((key, _hashable(item)) for key, item in value.items()))
+    if isinstance(value, list):
+        return tuple(_hashable(item) for item in value)
+    return value
+
+
+def _document_id(spec, mappings, row):
+    document = {}
+    for item in _id_copy_mappings(mappings):
+        _set_path(document, item["targetPath"], _value(spec, item, row))
+    return document.get("_id")
 
 
 def _documents(spec, source, collection, grok, rejects, cache, digest):
     name = collection["name"]
-    mappings = [
-        item for item in spec["fieldMapping"]["mappings"] if item["targetCollection"] == name
-    ]
-    owner = next(
-        item for item in mappings if item["targetPath"] == "_id" and item["transform"] == "copy"
-    )
+    mappings = _collection_mappings(spec, name)
+    owner = _owner_mapping(mappings)
     validation = collection["validation"]
     discriminator = (collection.get("discriminator") or {}).get("field")
     for row in source.get(owner["sourceTable"], []):
@@ -102,20 +151,21 @@ def _documents(spec, source, collection, grok, rejects, cache, digest):
 
         calls = 0
         failed = False
+        primary_key = _primary_key(spec, owner["sourceTable"], row)
         for item in mappings:
             if item["transform"] != "grok":
                 continue
             raw_text = row.get(item["sourceColumn"])
             if not _invoke(item, raw_text):
                 continue
-            raw, used_call, cache_key = _classify(item, raw_text, grok, cache, digest, row, owner)
+            raw, used_call, cache_key = _classify(item, raw_text, grok, cache, digest, primary_key)
             calls += used_call
             ok, reason = _valid(raw, item["grok"]["targetShape"])
             if not ok:
                 rejects.append(
                     {
                         "sourceTable": owner["sourceTable"],
-                        "primaryKey": row.get(owner["sourceColumn"]),
+                        "primaryKey": primary_key,
                         "targetCollection": name,
                         "targetPath": item["targetPath"],
                         "reason": reason,
@@ -192,7 +242,9 @@ def _value(spec, mapping, row):
     column = _column(spec, mapping["sourceTable"], mapping["sourceColumn"])
     data_type = column["dataType"]
     if data_type.startswith("NUMBER"):
-        return int(value)
+        from bson import Int64
+
+        return Int64(int(value))
     if data_type == "TIMESTAMP":
         if isinstance(value, datetime):
             return value
@@ -239,10 +291,10 @@ def _invoke(mapping, value):
     return check(value)
 
 
-def _classify(mapping, text, grok, cache, digest, row, owner):
+def _classify(mapping, text, grok, cache, digest, primary_key):
     key = (
         digest,
-        row.get(owner["sourceColumn"]),
+        _hashable(primary_key),
         mapping["targetPath"],
         hashlib.sha256(text.encode("utf-8")).hexdigest(),
     )
@@ -302,6 +354,132 @@ def _set_path(document, path, value):
     for part in parts[:-1]:
         cursor = cursor.setdefault(part, {})
     cursor[parts[-1]] = value
+
+
+def compare_source_counts(spec, source, database, rejects):
+    """Compare each source table with the documents written from it.
+
+    A rejected source row is not a loaded document. Embedded child rows whose
+    parent was rejected are counted in unloadedWithParent and are not loaded.
+    """
+    rejected = {}
+    for item in rejects:
+        rejected.setdefault(item["sourceTable"], set()).add(_hashable(item["primaryKey"]))
+
+    by_collection = {}
+    for collection in spec["documentModel"]["collections"]:
+        mappings = _collection_mappings(spec, collection["name"])
+        by_collection[collection["name"]] = (_owner_mapping(mappings), mappings)
+
+    reports = []
+    for table in spec["relationalModel"]["tables"]:
+        name = table["name"]
+        rows = source.get(name, [])
+        owner_hit = None
+        for collection_name, (owner, mappings) in by_collection.items():
+            if owner["sourceTable"] == name:
+                owner_hit = (collection_name, mappings)
+                break
+        if owner_hit is not None:
+            collection_name, mappings = owner_hit
+            reports.append(
+                _owner_count(spec, name, rows, collection_name, mappings, database, rejected)
+            )
+            continue
+        parent_mapping = next(
+            (
+                item
+                for item in spec["fieldMapping"]["mappings"]
+                if item["sourceTable"] == name and item["transform"] == "parent"
+            ),
+            None,
+        )
+        if parent_mapping is None:
+            reports.append(_count_row(name, None, len(rows), 0, 0, 0))
+            continue
+        collection_name = parent_mapping["targetCollection"]
+        owner, mappings = by_collection[collection_name]
+        reports.append(
+            _embedded_count(
+                spec, name, rows, parent_mapping, owner, mappings, database, rejected
+            )
+        )
+    return reports
+
+
+def _count_row(source_table, target_collection, source_rows, documents, rejected, unloaded):
+    return {
+        "sourceTable": source_table,
+        "targetCollection": target_collection,
+        "sourceRows": source_rows,
+        "documents": documents,
+        "rejected": rejected,
+        "unloadedWithParent": unloaded,
+    }
+
+
+def _owner_count(spec, name, rows, collection_name, mappings, database, rejected):
+    rejected_keys = rejected.get(name, set())
+    written = 0
+    rejected_count = 0
+    for row in rows:
+        if _hashable(_primary_key(spec, name, row)) in rejected_keys:
+            rejected_count += 1
+            continue
+        if database.get(collection_name, _document_id(spec, mappings, row)) is not None:
+            written += 1
+    return _count_row(name, collection_name, len(rows), written, rejected_count, 0)
+
+
+def _embedded_count(spec, name, rows, parent_mapping, owner, mappings, database, rejected):
+    collection_name = parent_mapping["targetCollection"]
+    prefix = _array_prefix(mappings)
+    rejected_parents = rejected.get(owner["sourceTable"], set())
+    rejected_keys = rejected.get(name, set())
+    written = 0
+    rejected_count = 0
+    unloaded = 0
+    for row in rows:
+        if _hashable(_primary_key(spec, name, row)) in rejected_keys:
+            rejected_count += 1
+            continue
+        if _hashable(_parent_key(spec, owner, parent_mapping, row)) in rejected_parents:
+            unloaded += 1
+            continue
+        document = database.get(
+            collection_name,
+            _parent_document_id(spec, owner, mappings, parent_mapping, row),
+        )
+        element = _child_element(spec, mappings, parent_mapping, row, prefix)
+        elements = document.get(prefix, []) if document else []
+        if element in elements:
+            written += 1
+    return _count_row(name, collection_name, len(rows), written, rejected_count, unloaded)
+
+
+def _parent_key(spec, owner, parent_mapping, child_row):
+    columns = _table(spec, owner["sourceTable"])["primaryKey"]
+    if len(columns) == 1:
+        return child_row.get(parent_mapping["sourceColumn"])
+    return {column: child_row.get(column) for column in columns}
+
+
+def _parent_document_id(spec, owner, mappings, parent_mapping, child_row):
+    columns = _table(spec, owner["sourceTable"])["primaryKey"]
+    if len(columns) == 1:
+        synthetic = {columns[0]: child_row.get(parent_mapping["sourceColumn"])}
+    else:
+        synthetic = {column: child_row.get(column) for column in columns}
+    return _document_id(spec, mappings, synthetic)
+
+
+def _child_element(spec, mappings, parent_mapping, child, prefix):
+    element = {}
+    for item in mappings:
+        if item["sourceTable"] != parent_mapping["sourceTable"] or item["transform"] != "copy":
+            continue
+        _set_path(element, _element_field(item["targetPath"], prefix), _value(spec, item, child))
+    return element
 
 
 def _table(spec, name):
