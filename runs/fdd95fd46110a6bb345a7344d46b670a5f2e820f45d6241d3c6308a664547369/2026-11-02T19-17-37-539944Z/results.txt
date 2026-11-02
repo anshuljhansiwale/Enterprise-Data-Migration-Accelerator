@@ -1,0 +1,18 @@
+tests.test_load.LoadTests.test_cli_checks_the_hash_before_a_load ... passed
+tests.test_load.LoadTests.test_create_index_uses_partial_filter_when_the_spec_has_one ... passed
+tests.test_load.LoadTests.test_embed_keeps_a_copy_path_without_a_dot ... passed
+tests.test_load.LoadTests.test_invalid_grok_output_is_rejected_and_not_loaded ... passed
+tests.test_load.LoadTests.test_long_fields_follow_the_validator ... passed
+tests.test_load.LoadTests.test_lookup_matches_every_foreign_key_column ... passed
+tests.test_load.LoadTests.test_mappings_indexes_and_rerun ... passed
+tests.test_load.LoadTests.test_one_client_is_reused_for_the_process ... passed
+tests.test_load.LoadTests.test_recorded_approval_hash ... passed
+tests.test_load.LoadTests.test_run_log_keeps_each_spec_hash ... passed
+tests.test_load.LoadTests.test_source_counts_leave_rejected_rows_unloaded ... passed
+tests.test_load.LoadTests.test_unapproved_or_mismatched_spec_writes_nothing ... passed
+tests.test_load.LoadTests.test_unknown_invoke_when_writes_nothing ... passed
+
+Ran 13 tests
+passed 13, failures 0, errors 0, skipped 0
+
+OK
