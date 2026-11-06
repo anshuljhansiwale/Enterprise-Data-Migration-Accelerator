@@ -1,0 +1,1163 @@
+{
+  "specVersion": "1",
+  "relationalModel": {
+    "sourceSystem": "oracle",
+    "sourceFile": "fixtures/order-management/source.sql",
+    "tables": [
+      {
+        "name": "customers",
+        "columns": [
+          {
+            "name": "customer_id",
+            "dataType": "NUMBER(10)",
+            "nullable": false
+          },
+          {
+            "name": "full_name",
+            "dataType": "VARCHAR2(200)",
+            "nullable": false
+          },
+          {
+            "name": "email",
+            "dataType": "VARCHAR2(320)",
+            "nullable": false
+          },
+          {
+            "name": "created_at",
+            "dataType": "TIMESTAMP",
+            "nullable": false
+          }
+        ],
+        "primaryKey": [
+          "customer_id"
+        ],
+        "cardinalityNote": "customers: about 500000 rows. Profile fields change rarely."
+      },
+      {
+        "name": "addresses",
+        "columns": [
+          {
+            "name": "address_id",
+            "dataType": "NUMBER(10)",
+            "nullable": false
+          },
+          {
+            "name": "customer_id",
+            "dataType": "NUMBER(10)",
+            "nullable": false
+          },
+          {
+            "name": "label",
+            "dataType": "VARCHAR2(40)",
+            "nullable": false
+          },
+          {
+            "name": "line1",
+            "dataType": "VARCHAR2(200)",
+            "nullable": false
+          },
+          {
+            "name": "line2",
+            "dataType": "VARCHAR2(200)",
+            "nullable": true
+          },
+          {
+            "name": "city",
+            "dataType": "VARCHAR2(100)",
+            "nullable": false
+          },
+          {
+            "name": "region",
+            "dataType": "VARCHAR2(100)",
+            "nullable": true
+          },
+          {
+            "name": "postal_code",
+            "dataType": "VARCHAR2(20)",
+            "nullable": false
+          },
+          {
+            "name": "country_code",
+            "dataType": "CHAR(2)",
+            "nullable": false
+          },
+          {
+            "name": "is_current",
+            "dataType": "NUMBER(1)",
+            "nullable": false,
+            "notes": "CHECK (is_current IN (0, 1))"
+          }
+        ],
+        "primaryKey": [
+          "address_id"
+        ],
+        "foreignKeys": [
+          {
+            "columns": [
+              "customer_id"
+            ],
+            "referencesTable": "customers",
+            "referencesColumns": [
+              "customer_id"
+            ]
+          }
+        ],
+        "cardinalityNote": "addresses: about 3 per customer on average. History is retained. No declared upper bound. Address-book edits are independent of profile edits."
+      },
+      {
+        "name": "products",
+        "columns": [
+          {
+            "name": "product_id",
+            "dataType": "NUMBER(10)",
+            "nullable": false
+          },
+          {
+            "name": "sku",
+            "dataType": "VARCHAR2(40)",
+            "nullable": false
+          },
+          {
+            "name": "type",
+            "dataType": "VARCHAR2(20)",
+            "nullable": false,
+            "notes": "CHECK (type IN ('book', 'electronics', 'clothing')). type is a closed subtype discriminator."
+          },
+          {
+            "name": "name",
+            "dataType": "VARCHAR2(200)",
+            "nullable": false
+          },
+          {
+            "name": "price_cents",
+            "dataType": "NUMBER(10)",
+            "nullable": false
+          },
+          {
+            "name": "author",
+            "dataType": "VARCHAR2(200)",
+            "nullable": true
+          },
+          {
+            "name": "isbn",
+            "dataType": "VARCHAR2(20)",
+            "nullable": true
+          },
+          {
+            "name": "page_count",
+            "dataType": "NUMBER(6)",
+            "nullable": true
+          },
+          {
+            "name": "brand",
+            "dataType": "VARCHAR2(100)",
+            "nullable": true
+          },
+          {
+            "name": "warranty_months",
+            "dataType": "NUMBER(4)",
+            "nullable": true
+          },
+          {
+            "name": "size",
+            "dataType": "VARCHAR2(10)",
+            "nullable": true
+          },
+          {
+            "name": "color",
+            "dataType": "VARCHAR2(40)",
+            "nullable": true
+          },
+          {
+            "name": "material",
+            "dataType": "VARCHAR2(80)",
+            "nullable": true
+          }
+        ],
+        "primaryKey": [
+          "product_id"
+        ],
+        "uniqueKeys": [
+          [
+            "sku"
+          ]
+        ],
+        "cardinalityNote": "products: about 20000 rows. type is a closed subtype discriminator."
+      },
+      {
+        "name": "orders",
+        "columns": [
+          {
+            "name": "order_id",
+            "dataType": "NUMBER(10)",
+            "nullable": false
+          },
+          {
+            "name": "customer_id",
+            "dataType": "NUMBER(10)",
+            "nullable": false
+          },
+          {
+            "name": "ship_address_id",
+            "dataType": "NUMBER(10)",
+            "nullable": false
+          },
+          {
+            "name": "placed_at",
+            "dataType": "TIMESTAMP",
+            "nullable": false
+          },
+          {
+            "name": "status",
+            "dataType": "VARCHAR2(20)",
+            "nullable": false
+          },
+          {
+            "name": "notes",
+            "dataType": "CLOB",
+            "nullable": true,
+            "notes": "notes is free text from the customer or from support. It has no schema."
+          }
+        ],
+        "primaryKey": [
+          "order_id"
+        ],
+        "foreignKeys": [
+          {
+            "columns": [
+              "customer_id"
+            ],
+            "referencesTable": "customers",
+            "referencesColumns": [
+              "customer_id"
+            ]
+          },
+          {
+            "columns": [
+              "ship_address_id"
+            ],
+            "referencesTable": "addresses",
+            "referencesColumns": [
+              "address_id"
+            ]
+          }
+        ],
+        "cardinalityNote": "orders: about 2000000 rows. notes is free text from the customer or from support. It has no schema."
+      },
+      {
+        "name": "order_lines",
+        "columns": [
+          {
+            "name": "order_line_id",
+            "dataType": "NUMBER(10)",
+            "nullable": false
+          },
+          {
+            "name": "order_id",
+            "dataType": "NUMBER(10)",
+            "nullable": false
+          },
+          {
+            "name": "product_id",
+            "dataType": "NUMBER(10)",
+            "nullable": false
+          },
+          {
+            "name": "quantity",
+            "dataType": "NUMBER(6)",
+            "nullable": false
+          },
+          {
+            "name": "unit_price_cents",
+            "dataType": "NUMBER(10)",
+            "nullable": false
+          }
+        ],
+        "primaryKey": [
+          "order_line_id"
+        ],
+        "foreignKeys": [
+          {
+            "columns": [
+              "order_id"
+            ],
+            "referencesTable": "orders",
+            "referencesColumns": [
+              "order_id"
+            ]
+          },
+          {
+            "columns": [
+              "product_id"
+            ],
+            "referencesTable": "products",
+            "referencesColumns": [
+              "product_id"
+            ]
+          }
+        ],
+        "cardinalityNote": "order_lines: average 3 per order, observed maximum 40."
+      }
+    ],
+    "accessPaths": [
+      {
+        "id": "q-order-by-id",
+        "statement": "Given an order id, return that order, its lines, and the customer name and email stored with the order.",
+        "needs": [
+          "order",
+          "lines",
+          "customer name",
+          "customer email"
+        ]
+      },
+      {
+        "id": "q-products-by-type-price",
+        "statement": "List products of a given type with price below a given amount, sorted by price ascending.",
+        "needs": [
+          "product type",
+          "price",
+          "shared product fields"
+        ]
+      },
+      {
+        "id": "q-recent-orders-by-customer",
+        "statement": "List a customer's orders from most recent to oldest.",
+        "needs": [
+          "customer id on the order",
+          "placed-at timestamp"
+        ]
+      }
+    ]
+  },
+  "documentModel": {
+    "collections": [
+      {
+        "name": "customers",
+        "purpose": "Living customer profile. One document per customers row.",
+        "pattern": "entity",
+        "example": {
+          "_id": 42,
+          "fullName": "Sample Customer",
+          "email": "customer@example.com",
+          "createdAt": "2022-04-01T00:00:00Z"
+        },
+        "validation": {
+          "bsonType": "object",
+          "required": [
+            "_id",
+            "fullName",
+            "email",
+            "createdAt"
+          ],
+          "additionalProperties": false,
+          "properties": {
+            "_id": {
+              "bsonType": "long"
+            },
+            "fullName": {
+              "bsonType": "string"
+            },
+            "email": {
+              "bsonType": "string"
+            },
+            "createdAt": {
+              "bsonType": "date"
+            }
+          }
+        }
+      },
+      {
+        "name": "addresses",
+        "purpose": "Address book. One document per addresses row, referenced from customers and from orders.",
+        "pattern": "reference-target",
+        "example": {
+          "_id": 7,
+          "customerId": 42,
+          "label": "shipping",
+          "line1": "1 Market Street",
+          "city": "San Francisco",
+          "postalCode": "94105",
+          "countryCode": "US",
+          "isCurrent": true
+        },
+        "validation": {
+          "bsonType": "object",
+          "required": [
+            "_id",
+            "customerId",
+            "label",
+            "line1",
+            "city",
+            "postalCode",
+            "countryCode",
+            "isCurrent"
+          ],
+          "additionalProperties": false,
+          "properties": {
+            "_id": {
+              "bsonType": "long"
+            },
+            "customerId": {
+              "bsonType": "long"
+            },
+            "label": {
+              "bsonType": "string"
+            },
+            "line1": {
+              "bsonType": "string"
+            },
+            "line2": {
+              "bsonType": "string"
+            },
+            "city": {
+              "bsonType": "string"
+            },
+            "region": {
+              "bsonType": "string"
+            },
+            "postalCode": {
+              "bsonType": "string"
+            },
+            "countryCode": {
+              "bsonType": "string",
+              "minLength": 2,
+              "maxLength": 2
+            },
+            "isCurrent": {
+              "bsonType": "bool"
+            }
+          }
+        }
+      },
+      {
+        "name": "products",
+        "purpose": "Product catalog. One document per products row. Subtypes share this collection.",
+        "pattern": "polymorphic",
+        "discriminator": {
+          "field": "type",
+          "values": [
+            "book",
+            "electronics",
+            "clothing"
+          ]
+        },
+        "examples": [
+          {
+            "_id": 1001,
+            "sku": "BK-1001",
+            "type": "book",
+            "name": "Sample Field Guide",
+            "priceCents": 2400,
+            "author": "Sample Author",
+            "isbn": "9780000000001",
+            "pageCount": 320
+          },
+          {
+            "_id": 2001,
+            "sku": "EL-2001",
+            "type": "electronics",
+            "name": "Sample Radio",
+            "priceCents": 8900,
+            "brand": "Sample Brand",
+            "warrantyMonths": 24
+          },
+          {
+            "_id": 3001,
+            "sku": "CL-3001",
+            "type": "clothing",
+            "name": "Sample Jacket",
+            "priceCents": 12000,
+            "size": "M",
+            "color": "navy",
+            "material": "wool"
+          }
+        ],
+        "validation": {
+          "bsonType": "object",
+          "required": [
+            "_id",
+            "sku",
+            "type",
+            "name",
+            "priceCents"
+          ],
+          "additionalProperties": false,
+          "properties": {
+            "_id": {
+              "bsonType": "long"
+            },
+            "sku": {
+              "bsonType": "string"
+            },
+            "type": {
+              "enum": [
+                "book",
+                "electronics",
+                "clothing"
+              ]
+            },
+            "name": {
+              "bsonType": "string"
+            },
+            "priceCents": {
+              "bsonType": "long"
+            },
+            "author": {
+              "bsonType": "string"
+            },
+            "isbn": {
+              "bsonType": "string"
+            },
+            "pageCount": {
+              "bsonType": "long"
+            },
+            "brand": {
+              "bsonType": "string"
+            },
+            "warrantyMonths": {
+              "bsonType": "long"
+            },
+            "size": {
+              "bsonType": "string"
+            },
+            "color": {
+              "bsonType": "string"
+            },
+            "material": {
+              "bsonType": "string"
+            }
+          },
+          "oneOf": [
+            {
+              "required": [
+                "author",
+                "isbn",
+                "pageCount"
+              ],
+              "properties": {
+                "type": {
+                  "enum": [
+                    "book"
+                  ]
+                }
+              }
+            },
+            {
+              "required": [
+                "brand",
+                "warrantyMonths"
+              ],
+              "properties": {
+                "type": {
+                  "enum": [
+                    "electronics"
+                  ]
+                }
+              }
+            },
+            {
+              "required": [
+                "size",
+                "color",
+                "material"
+              ],
+              "properties": {
+                "type": {
+                  "enum": [
+                    "clothing"
+                  ]
+                }
+              }
+            }
+          ]
+        }
+      },
+      {
+        "name": "orders",
+        "purpose": "One document per orders row, with embedded lines and a customer snapshot.",
+        "pattern": "entity",
+        "example": {
+          "_id": 9001,
+          "customer": {
+            "customerId": 42,
+            "fullName": "Sample Customer",
+            "email": "customer@example.com"
+          },
+          "shipAddressId": 7,
+          "placedAt": "2024-11-02T15:04:00Z",
+          "status": "shipped",
+          "lines": [
+            {
+              "orderLineId": 1,
+              "productId": 1001,
+              "quantity": 1,
+              "unitPriceCents": 2400
+            },
+            {
+              "orderLineId": 2,
+              "productId": 3001,
+              "quantity": 1,
+              "unitPriceCents": 12000
+            }
+          ],
+          "notesRaw": "Box arrived crushed and the shipment was two weeks late.",
+          "notesClassification": {
+            "sentiment": "negative",
+            "issueCategory": "delivery",
+            "summary": "Crushed box and a late shipment."
+          }
+        },
+        "validation": {
+          "bsonType": "object",
+          "required": [
+            "_id",
+            "customer",
+            "shipAddressId",
+            "placedAt",
+            "status",
+            "lines"
+          ],
+          "additionalProperties": false,
+          "properties": {
+            "_id": {
+              "bsonType": "long"
+            },
+            "customer": {
+              "bsonType": "object",
+              "required": [
+                "customerId",
+                "fullName",
+                "email"
+              ],
+              "additionalProperties": false,
+              "properties": {
+                "customerId": {
+                  "bsonType": "long"
+                },
+                "fullName": {
+                  "bsonType": "string"
+                },
+                "email": {
+                  "bsonType": "string"
+                }
+              }
+            },
+            "shipAddressId": {
+              "bsonType": "long"
+            },
+            "placedAt": {
+              "bsonType": "date"
+            },
+            "status": {
+              "bsonType": "string"
+            },
+            "lines": {
+              "bsonType": "array",
+              "maxItems": 100,
+              "items": {
+                "bsonType": "object",
+                "required": [
+                  "orderLineId",
+                  "productId",
+                  "quantity",
+                  "unitPriceCents"
+                ],
+                "additionalProperties": false,
+                "properties": {
+                  "orderLineId": {
+                    "bsonType": "long"
+                  },
+                  "productId": {
+                    "bsonType": "long"
+                  },
+                  "quantity": {
+                    "bsonType": "long"
+                  },
+                  "unitPriceCents": {
+                    "bsonType": "long"
+                  }
+                }
+              }
+            },
+            "notesRaw": {
+              "bsonType": "string"
+            },
+            "notesClassification": {
+              "bsonType": "object",
+              "required": [
+                "sentiment",
+                "issueCategory",
+                "summary"
+              ],
+              "additionalProperties": false,
+              "properties": {
+                "sentiment": {
+                  "enum": [
+                    "positive",
+                    "neutral",
+                    "negative"
+                  ]
+                },
+                "issueCategory": {
+                  "enum": [
+                    "delivery",
+                    "product",
+                    "billing",
+                    "other"
+                  ]
+                },
+                "summary": {
+                  "bsonType": "string",
+                  "maxLength": 280
+                }
+              }
+            }
+          }
+        }
+      }
+    ],
+    "relationships": [
+      {
+        "id": "rel-order-lines",
+        "from": "order_lines",
+        "to": "orders",
+        "decision": "embed",
+        "why": "q-order-by-id returns lines with the order. Cardinality is a few per order, observed maximum 40, so the array is bounded with maxItems 100.",
+        "risks": [
+          "A future channel that puts hundreds of lines on one order would pass the bound and push the document toward 16MB. Split lines out under the outlier pattern if that workload appears."
+        ]
+      },
+      {
+        "id": "rel-order-customer",
+        "from": "customers",
+        "to": "orders",
+        "decision": "embed",
+        "snapshot": true,
+        "fields": [
+          "customer.customerId",
+          "customer.fullName",
+          "customer.email"
+        ],
+        "why": "q-order-by-id needs the customer name and email on the order. The living profile stays in customers because it is updated on its own cadence.",
+        "risks": [
+          "The source order stores only customer_id, so the snapshot written by this migration is the customer row at migration time, which can differ from the name used at checkout.",
+          "Later edits to customers must leave existing order snapshots unchanged. Orders created after cutover snapshot the customer at placement."
+        ]
+      },
+      {
+        "id": "rel-addresses",
+        "from": "addresses",
+        "to": "customers",
+        "decision": "reference",
+        "why": "Addresses accumulate with no declared upper bound and are edited independently of the customer profile. No access path needs the address book inside the customer document.",
+        "risks": [
+          "A screen that always renders the customer with every address takes a second read. That access path is not in this workload."
+        ]
+      },
+      {
+        "id": "rel-order-ship-address",
+        "from": "orders",
+        "to": "addresses",
+        "decision": "reference",
+        "why": "q-order-by-id does not ask for the address body. The order stores shipAddressId.",
+        "risks": [
+          "The address row can change after the order. The source has no order-time copy of the street text. A later access path that needs the historical ship-to would add a snapshot; this spec does not."
+        ]
+      },
+      {
+        "id": "rel-line-product",
+        "from": "order_lines",
+        "to": "products",
+        "decision": "reference",
+        "why": "The line already stores product_id, quantity, and unit_price_cents. q-order-by-id does not ask for catalog attributes, so those stay in products.",
+        "risks": [
+          "Showing the current product name on a past order is a lookup, and the name may have changed since the order."
+        ]
+      },
+      {
+        "id": "rel-product-subtypes",
+        "from": "products.type",
+        "to": "products",
+        "decision": "polymorphic",
+        "why": "book, electronics, and clothing are variants of one product. q-products-by-type-price filters type and price across the catalog, so one collection with discriminator type matches the shared query.",
+        "risks": [
+          "Subtype fields are optional on the shared property list so additionalProperties can stay false. A book that also contains brand still validates. The migration writes a subtype field only when the row type owns that field, and omits the field when the source is null.",
+          "No access path filters author, brand, or size, so this spec adds no partial index on those fields."
+        ]
+      }
+    ]
+  },
+  "indexPlan": {
+    "workloadProvided": true,
+    "indexes": [
+      {
+        "collection": "orders",
+        "keys": {
+          "_id": 1
+        },
+        "name": "_id_",
+        "servesQuery": "q-order-by-id",
+        "evidence": "stated-query",
+        "create": false
+      },
+      {
+        "collection": "products",
+        "keys": {
+          "type": 1,
+          "priceCents": 1
+        },
+        "name": "type_1_priceCents_1",
+        "servesQuery": "q-products-by-type-price",
+        "evidence": "stated-query",
+        "create": true
+      },
+      {
+        "collection": "orders",
+        "keys": {
+          "customer.customerId": 1,
+          "placedAt": -1
+        },
+        "name": "customer.customerId_1_placedAt_-1",
+        "servesQuery": "q-recent-orders-by-customer",
+        "evidence": "stated-query",
+        "create": true
+      }
+    ],
+    "notes": "Three access paths were stated and each gets one entry. q-order-by-id is a point read on orders._id, which the default _id_ index already serves, so nothing is created; lines and the customer snapshot are embedded, so it needs no other index. q-products-by-type-price puts the type discriminator first and the price range second, which also returns the results sorted by priceCents ascending, so there is no in-memory sort. It has no partialFilter because the query covers every product type. q-recent-orders-by-customer uses the snapshot path customer.customerId first and then placedAt descending, so it matches the most-recent-first sort. The migration creates two indexes. Evidence is stated-query for all three because no measured slow-query log was supplied. The source UNIQUE key on products.sku was deliberately not promoted because no access path reads by sku. Foreign keys get no index because no access path uses them: orders.shipAddressId, orders.lines.productId, and addresses.customerId. No partial indexes on subtype fields (author, brand, size) were added, since no access path filters on them."
+  },
+  "fieldMapping": {
+    "mappings": [
+      {
+        "sourceTable": "customers",
+        "sourceColumn": "customer_id",
+        "targetCollection": "customers",
+        "targetPath": "_id",
+        "transform": "copy"
+      },
+      {
+        "sourceTable": "customers",
+        "sourceColumn": "full_name",
+        "targetCollection": "customers",
+        "targetPath": "fullName",
+        "transform": "copy"
+      },
+      {
+        "sourceTable": "customers",
+        "sourceColumn": "full_name",
+        "targetCollection": "orders",
+        "targetPath": "customer.fullName",
+        "transform": "snapshot"
+      },
+      {
+        "sourceTable": "customers",
+        "sourceColumn": "email",
+        "targetCollection": "customers",
+        "targetPath": "email",
+        "transform": "copy"
+      },
+      {
+        "sourceTable": "customers",
+        "sourceColumn": "email",
+        "targetCollection": "orders",
+        "targetPath": "customer.email",
+        "transform": "snapshot"
+      },
+      {
+        "sourceTable": "customers",
+        "sourceColumn": "created_at",
+        "targetCollection": "customers",
+        "targetPath": "createdAt",
+        "transform": "copy"
+      },
+      {
+        "sourceTable": "addresses",
+        "sourceColumn": "address_id",
+        "targetCollection": "addresses",
+        "targetPath": "_id",
+        "transform": "copy"
+      },
+      {
+        "sourceTable": "addresses",
+        "sourceColumn": "customer_id",
+        "targetCollection": "addresses",
+        "targetPath": "customerId",
+        "transform": "copy"
+      },
+      {
+        "sourceTable": "addresses",
+        "sourceColumn": "label",
+        "targetCollection": "addresses",
+        "targetPath": "label",
+        "transform": "copy"
+      },
+      {
+        "sourceTable": "addresses",
+        "sourceColumn": "line1",
+        "targetCollection": "addresses",
+        "targetPath": "line1",
+        "transform": "copy"
+      },
+      {
+        "sourceTable": "addresses",
+        "sourceColumn": "line2",
+        "targetCollection": "addresses",
+        "targetPath": "line2",
+        "transform": "copy"
+      },
+      {
+        "sourceTable": "addresses",
+        "sourceColumn": "city",
+        "targetCollection": "addresses",
+        "targetPath": "city",
+        "transform": "copy"
+      },
+      {
+        "sourceTable": "addresses",
+        "sourceColumn": "region",
+        "targetCollection": "addresses",
+        "targetPath": "region",
+        "transform": "copy"
+      },
+      {
+        "sourceTable": "addresses",
+        "sourceColumn": "postal_code",
+        "targetCollection": "addresses",
+        "targetPath": "postalCode",
+        "transform": "copy"
+      },
+      {
+        "sourceTable": "addresses",
+        "sourceColumn": "country_code",
+        "targetCollection": "addresses",
+        "targetPath": "countryCode",
+        "transform": "copy"
+      },
+      {
+        "sourceTable": "addresses",
+        "sourceColumn": "is_current",
+        "targetCollection": "addresses",
+        "targetPath": "isCurrent",
+        "transform": "copy",
+        "valueConversion": "zero-one-to-boolean"
+      },
+      {
+        "sourceTable": "products",
+        "sourceColumn": "product_id",
+        "targetCollection": "products",
+        "targetPath": "_id",
+        "transform": "copy"
+      },
+      {
+        "sourceTable": "products",
+        "sourceColumn": "sku",
+        "targetCollection": "products",
+        "targetPath": "sku",
+        "transform": "copy"
+      },
+      {
+        "sourceTable": "products",
+        "sourceColumn": "type",
+        "targetCollection": "products",
+        "targetPath": "type",
+        "transform": "copy"
+      },
+      {
+        "sourceTable": "products",
+        "sourceColumn": "name",
+        "targetCollection": "products",
+        "targetPath": "name",
+        "transform": "copy"
+      },
+      {
+        "sourceTable": "products",
+        "sourceColumn": "price_cents",
+        "targetCollection": "products",
+        "targetPath": "priceCents",
+        "transform": "copy"
+      },
+      {
+        "sourceTable": "products",
+        "sourceColumn": "author",
+        "targetCollection": "products",
+        "targetPath": "author",
+        "transform": "copy"
+      },
+      {
+        "sourceTable": "products",
+        "sourceColumn": "isbn",
+        "targetCollection": "products",
+        "targetPath": "isbn",
+        "transform": "copy"
+      },
+      {
+        "sourceTable": "products",
+        "sourceColumn": "page_count",
+        "targetCollection": "products",
+        "targetPath": "pageCount",
+        "transform": "copy"
+      },
+      {
+        "sourceTable": "products",
+        "sourceColumn": "brand",
+        "targetCollection": "products",
+        "targetPath": "brand",
+        "transform": "copy"
+      },
+      {
+        "sourceTable": "products",
+        "sourceColumn": "warranty_months",
+        "targetCollection": "products",
+        "targetPath": "warrantyMonths",
+        "transform": "copy"
+      },
+      {
+        "sourceTable": "products",
+        "sourceColumn": "size",
+        "targetCollection": "products",
+        "targetPath": "size",
+        "transform": "copy"
+      },
+      {
+        "sourceTable": "products",
+        "sourceColumn": "color",
+        "targetCollection": "products",
+        "targetPath": "color",
+        "transform": "copy"
+      },
+      {
+        "sourceTable": "products",
+        "sourceColumn": "material",
+        "targetCollection": "products",
+        "targetPath": "material",
+        "transform": "copy"
+      },
+      {
+        "sourceTable": "orders",
+        "sourceColumn": "order_id",
+        "targetCollection": "orders",
+        "targetPath": "_id",
+        "transform": "copy"
+      },
+      {
+        "sourceTable": "orders",
+        "sourceColumn": "customer_id",
+        "targetCollection": "orders",
+        "targetPath": "customer.customerId",
+        "transform": "snapshot"
+      },
+      {
+        "sourceTable": "orders",
+        "sourceColumn": "ship_address_id",
+        "targetCollection": "orders",
+        "targetPath": "shipAddressId",
+        "transform": "copy"
+      },
+      {
+        "sourceTable": "orders",
+        "sourceColumn": "placed_at",
+        "targetCollection": "orders",
+        "targetPath": "placedAt",
+        "transform": "copy"
+      },
+      {
+        "sourceTable": "orders",
+        "sourceColumn": "status",
+        "targetCollection": "orders",
+        "targetPath": "status",
+        "transform": "copy"
+      },
+      {
+        "sourceTable": "orders",
+        "sourceColumn": "notes",
+        "targetCollection": "orders",
+        "targetPath": "notesRaw",
+        "transform": "copy"
+      },
+      {
+        "sourceTable": "orders",
+        "sourceColumn": "notes",
+        "targetCollection": "orders",
+        "targetPath": "notesClassification",
+        "transform": "grok",
+        "grok": {
+          "invokeWhen": "The source value is a string and contains a non-whitespace character.",
+          "targetShape": {
+            "$schema": "https://json-schema.org/draft/2020-12/schema",
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "sentiment",
+              "issueCategory",
+              "summary"
+            ],
+            "properties": {
+              "sentiment": {
+                "type": "string",
+                "enum": [
+                  "positive",
+                  "neutral",
+                  "negative"
+                ]
+              },
+              "issueCategory": {
+                "type": "string",
+                "enum": [
+                  "delivery",
+                  "product",
+                  "billing",
+                  "other"
+                ]
+              },
+              "summary": {
+                "type": "string",
+                "maxLength": 280
+              }
+            }
+          }
+        }
+      },
+      {
+        "sourceTable": "order_lines",
+        "sourceColumn": "order_line_id",
+        "targetCollection": "orders",
+        "targetPath": "lines.orderLineId",
+        "transform": "copy"
+      },
+      {
+        "sourceTable": "order_lines",
+        "sourceColumn": "order_id",
+        "targetCollection": "orders",
+        "targetPath": "_id",
+        "transform": "parent"
+      },
+      {
+        "sourceTable": "order_lines",
+        "sourceColumn": "product_id",
+        "targetCollection": "orders",
+        "targetPath": "lines.productId",
+        "transform": "copy"
+      },
+      {
+        "sourceTable": "order_lines",
+        "sourceColumn": "quantity",
+        "targetCollection": "orders",
+        "targetPath": "lines.quantity",
+        "transform": "copy"
+      },
+      {
+        "sourceTable": "order_lines",
+        "sourceColumn": "unit_price_cents",
+        "targetCollection": "orders",
+        "targetPath": "lines.unitPriceCents",
+        "transform": "copy"
+      }
+    ]
+  },
+  "approval": {
+    "status": "approved",
+    "approver": "Anshul Jhansiwale",
+    "approvedAt": "2026-11-06T11:43:32Z",
+    "changes": [],
+    "specHash": "fdd95fd46110a6bb345a7344d46b670a5f2e820f45d6241d3c6308a664547369"
+  }
+}

@@ -1,0 +1,67 @@
+{
+  "specHash": "fdd95fd46110a6bb345a7344d46b670a5f2e820f45d6241d3c6308a664547369",
+  "loggedAt": "2026-11-06T11-46-06-856475Z",
+  "testFiles": [
+    "test_load.py"
+  ],
+  "testsRun": 13,
+  "passed": 13,
+  "failures": 0,
+  "errors": 0,
+  "skipped": 0,
+  "ok": true,
+  "cases": [
+    {
+      "id": "tests.test_load.LoadTests.test_cli_checks_the_hash_before_a_load",
+      "status": "passed"
+    },
+    {
+      "id": "tests.test_load.LoadTests.test_create_index_uses_partial_filter_when_the_spec_has_one",
+      "status": "passed"
+    },
+    {
+      "id": "tests.test_load.LoadTests.test_embed_keeps_a_copy_path_without_a_dot",
+      "status": "passed"
+    },
+    {
+      "id": "tests.test_load.LoadTests.test_invalid_grok_output_is_rejected_and_not_loaded",
+      "status": "passed"
+    },
+    {
+      "id": "tests.test_load.LoadTests.test_long_fields_follow_the_validator",
+      "status": "passed"
+    },
+    {
+      "id": "tests.test_load.LoadTests.test_lookup_matches_every_foreign_key_column",
+      "status": "passed"
+    },
+    {
+      "id": "tests.test_load.LoadTests.test_mappings_indexes_and_rerun",
+      "status": "passed"
+    },
+    {
+      "id": "tests.test_load.LoadTests.test_one_client_is_reused_for_the_process",
+      "status": "passed"
+    },
+    {
+      "id": "tests.test_load.LoadTests.test_recorded_approval_hash",
+      "status": "passed"
+    },
+    {
+      "id": "tests.test_load.LoadTests.test_run_log_keeps_each_spec_hash",
+      "status": "passed"
+    },
+    {
+      "id": "tests.test_load.LoadTests.test_source_counts_leave_rejected_rows_unloaded",
+      "status": "passed"
+    },
+    {
+      "id": "tests.test_load.LoadTests.test_unapproved_or_mismatched_spec_writes_nothing",
+      "status": "passed"
+    },
+    {
+      "id": "tests.test_load.LoadTests.test_unknown_invoke_when_writes_nothing",
+      "status": "passed"
+    }
+  ]
+}
