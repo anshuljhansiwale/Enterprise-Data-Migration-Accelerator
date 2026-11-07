@@ -3,6 +3,7 @@
 import hashlib
 import json
 from datetime import datetime
+from decimal import Decimal
 
 from migration.hashing import spec_hash
 
@@ -68,9 +69,7 @@ def _documents(spec, source, collection, grok, rejects, cache, digest):
     mappings = [
         item for item in spec["fieldMapping"]["mappings"] if item["targetCollection"] == name
     ]
-    owner = next(
-        item for item in mappings if item["targetPath"] == "_id" and item["transform"] == "copy"
-    )
+    owner = _owner(mappings)
     validation = collection["validation"]
     discriminator = (collection.get("discriminator") or {}).get("field")
     for row in source.get(owner["sourceTable"], []):
@@ -134,6 +133,23 @@ def _documents(spec, source, collection, grok, rejects, cache, digest):
         yield document, calls
 
 
+def _owner(mappings):
+    exact = next(
+        (item for item in mappings if item["targetPath"] == "_id" and item["transform"] == "copy"),
+        None,
+    )
+    if exact is not None:
+        return exact
+    parts = [
+        item
+        for item in mappings
+        if item["transform"] == "copy" and item["targetPath"].startswith("_id.")
+    ]
+    if not parts:
+        raise ValueError("collection has no _id mapping")
+    return parts[0]
+
+
 def _embed(spec, source, owner, row, mappings, prefix):
     parent = next(item for item in mappings if item["transform"] == "parent")
     elements = []
@@ -167,19 +183,38 @@ def _array_prefix(mappings):
 
 
 def _lookup(spec, source, owner, row, other_table):
-    owner_table = _table(spec, owner["sourceTable"])
-    for foreign_key in owner_table.get("foreignKeys", []):
-        if foreign_key["referencesTable"] != other_table:
+    foreign_keys = _table(spec, owner["sourceTable"]).get("foreignKeys", [])
+    direct = [item for item in foreign_keys if item["referencesTable"] == other_table]
+    if direct:
+        for foreign_key in direct:
+            found = _match_foreign_key(source, other_table, foreign_key, row, owner["sourceTable"])
+            if found is not None:
+                return found
+        return None
+    for foreign_key in foreign_keys:
+        middle_name = foreign_key["referencesTable"]
+        middle = _match_foreign_key(source, middle_name, foreign_key, row, owner["sourceTable"])
+        if middle is None:
             continue
-        columns = foreign_key.get("columns") or []
-        referenced = foreign_key.get("referencesColumns") or []
-        if not columns or len(columns) != len(referenced):
-            raise ValueError(
-                f"{owner['sourceTable']} foreign key to {other_table} needs columns and referencesColumns of equal length"
-            )
-        for candidate in source.get(other_table, []):
-            if all(candidate.get(ref) == row.get(col) for col, ref in zip(columns, referenced)):
-                return candidate
+        for hop in _table(spec, middle_name).get("foreignKeys", []):
+            if hop["referencesTable"] != other_table:
+                continue
+            found = _match_foreign_key(source, other_table, hop, middle, middle_name)
+            if found is not None:
+                return found
+    return None
+
+
+def _match_foreign_key(source, other_table, foreign_key, row, owner_table):
+    columns = foreign_key.get("columns") or []
+    referenced = foreign_key.get("referencesColumns") or []
+    if not columns or len(columns) != len(referenced):
+        raise ValueError(
+            f"{owner_table} foreign key to {other_table} needs columns and referencesColumns of equal length"
+        )
+    for candidate in source.get(other_table, []):
+        if all(candidate.get(ref) == row.get(col) for col, ref in zip(columns, referenced)):
+            return candidate
     return None
 
 
@@ -192,8 +227,10 @@ def _value(spec, mapping, row):
     column = _column(spec, mapping["sourceTable"], mapping["sourceColumn"])
     data_type = column["dataType"]
     if data_type.startswith("NUMBER"):
+        if "," in data_type:
+            return Decimal(str(value))
         return int(value)
-    if data_type == "TIMESTAMP":
+    if data_type in ("TIMESTAMP", "DATE"):
         if isinstance(value, datetime):
             return value
         return datetime.fromisoformat(value)

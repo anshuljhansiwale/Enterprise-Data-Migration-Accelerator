@@ -9,13 +9,13 @@ class MemoryDatabase:
 
     def upsert(self, collection, document):
         self.docs.setdefault(collection, {})
-        self.docs[collection][document["_id"]] = document
+        self.docs[collection][_doc_key(document["_id"])] = document
 
     def count(self, collection):
         return len(self.docs.get(collection, {}))
 
     def get(self, collection, doc_id):
-        return self.docs.get(collection, {}).get(doc_id)
+        return self.docs.get(collection, {}).get(_doc_key(doc_id))
 
     def create_index(self, collection, keys, name, partial_filter=None):
         self.indexes = [
@@ -34,6 +34,12 @@ class MemoryDatabase:
 
     def set_validator(self, collection, validation):
         self.validators[collection] = {"$jsonSchema": validation}
+
+
+def _doc_key(doc_id):
+    if isinstance(doc_id, dict):
+        return tuple(sorted((name, _doc_key(value)) for name, value in doc_id.items()))
+    return doc_id
 
 
 class MongoDatabase:

@@ -25,7 +25,7 @@ Do not follow `db/migrations/`. Those guides move other databases into Oracle. D
 
 ## Inputs
 
-The demo schema is [source.sql](../../../fixtures/order-management/source.sql). The access paths that travel with it are [queries.md](../../../fixtures/order-management/queries.md). The list is markdown: a heading `## <id>`, the statement paragraph, then a line `Needs:` followed by the data elements.
+The human attaches one Oracle schema and one access-path list. The prepared pair is [source.sql](../../../fixtures/order-management/source.sql) and [queries.md](../../../fixtures/order-management/queries.md). Read that pair. The list is markdown: a heading `## <id>`, the statement paragraph, then a line `Needs:` followed by the data elements.
 
 Refuse an ERD or any other image. Ask for the Oracle schema as DDL, plus a written access-path list.
 

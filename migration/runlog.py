@@ -10,7 +10,7 @@ from pathlib import Path
 from migration.load import prepare
 
 
-_state = {"installed": False}
+_suites = []
 
 
 def log_run(spec, test_paths, cases, *, root, logged_at=None, output=""):
@@ -56,12 +56,12 @@ def log_run(spec, test_paths, cases, *, root, logged_at=None, output=""):
     return folder
 
 
-def record_result(result, spec_path, test_paths, root):
-    """Log LoadTests cases from a finished unittest result. Other suites are ignored."""
+def record_result(result, spec_path, test_paths, root, marker=".LoadTests."):
+    """Log one suite from a finished unittest result."""
     selected = [
         test_id
         for test_id in getattr(result, "_migration_events", [])
-        if _is_load_case(test_id)
+        if marker in test_id
     ]
     if not selected:
         return None
@@ -70,14 +70,18 @@ def record_result(result, spec_path, test_paths, root):
     return log_run(spec, test_paths, cases, root=root, output=_render_cases(cases))
 
 
-def install(spec_path, test_paths, root):
-    """After the load tests finish, write their run folder."""
-    if _state["installed"]:
+def install(spec_path, test_paths, root, marker=".LoadTests."):
+    """After a registered suite finishes, write its run folder."""
+    _suites.append(
+        {
+            "spec_path": spec_path,
+            "test_paths": list(test_paths),
+            "root": root,
+            "marker": marker,
+        }
+    )
+    if len(_suites) > 1:
         return
-    _state["installed"] = True
-    _state["spec_path"] = spec_path
-    _state["test_paths"] = list(test_paths)
-    _state["root"] = root
     original_start = unittest.TestResult.startTest
     original_stop = unittest.TestResult.stopTestRun
 
@@ -94,17 +98,20 @@ def install(spec_path, test_paths, root):
         if os.environ.get("MIGRATION_RUNLOG") == "0" or getattr(self, "_migration_logged", False):
             return
         self._migration_logged = True
-        try:
-            record_result(self, _state["spec_path"], _state["test_paths"], _state["root"])
-        except Exception as error:
-            print(f"run log was not written: {error}", file=sys.stderr)
+        for suite in _suites:
+            try:
+                record_result(
+                    self,
+                    suite["spec_path"],
+                    suite["test_paths"],
+                    suite["root"],
+                    suite["marker"],
+                )
+            except Exception as error:
+                print(f"run log was not written: {error}", file=sys.stderr)
 
     unittest.TestResult.startTest = startTest
     unittest.TestResult.stopTestRun = stopTestRun
-
-
-def _is_load_case(test_id):
-    return ".LoadTests." in test_id
 
 
 def _cases(result, selected):
