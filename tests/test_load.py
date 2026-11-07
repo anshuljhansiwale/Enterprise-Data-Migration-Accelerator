@@ -10,9 +10,17 @@ from pathlib import Path
 
 from migration.__main__ import main
 from migration.hashing import spec_hash
-from migration.load import SpecRejected, UnrecognizedPredicate, _embed, _lookup, load
+from migration.load import (
+    SpecRejected,
+    UnrecognizedPredicate,
+    _embed,
+    _lookup,
+    compare_source_counts,
+    format_count_report,
+    load,
+)
 from migration.runlog import install, log_run
-from migration.store import MemoryDatabase
+from migration.store import MemoryDatabase, apply_bson_types, shared_client
 
 ROOT = Path(__file__).resolve().parents[1]
 SPEC_PATH = ROOT / "fixtures" / "order-management" / "approved-spec.json"
@@ -173,18 +181,47 @@ class LoadTests(unittest.TestCase):
             ["type_1_priceCents_1", "customer.customerId_1_placedAt_-1"],
         )
         self.assertEqual(
-            database.indexes[0]["keys"],
-            {"type": 1, "priceCents": 1},
+            list(database.indexes[0]["keys"].items()),
+            [("type", 1), ("priceCents", 1)],
         )
         self.assertEqual(
-            database.indexes[1]["keys"],
-            {"customer.customerId": 1, "placedAt": -1},
+            list(database.indexes[1]["keys"].items()),
+            [("customer.customerId", 1), ("placedAt", -1)],
         )
         self.assertEqual(
-            set(database.validators),
-            {"customers", "addresses", "products", "orders"},
+            [item["partialFilter"] for item in database.indexes],
+            [None, None],
         )
-        self.assertIn("$jsonSchema", database.validators["products"])
+        self.assertEqual(
+            sorted(item["collection"] for item in database.indexes),
+            ["orders", "products"],
+        )
+        self.assertEqual(
+            [item["name"] for item in self.spec["documentModel"]["collections"]],
+            ["customers", "addresses", "products", "orders"],
+        )
+        grok_mappings = [
+            item for item in self.spec["fieldMapping"]["mappings"] if item["transform"] == "grok"
+        ]
+        self.assertEqual(
+            [
+                (
+                    item["sourceTable"],
+                    item["sourceColumn"],
+                    item["targetCollection"],
+                    item["targetPath"],
+                )
+                for item in grok_mappings
+            ],
+            [("orders", "notes", "orders", "notesClassification")],
+        )
+        for collection in self.spec["documentModel"]["collections"]:
+            self.assertEqual(
+                database.validators[collection["name"]],
+                {"$jsonSchema": collection["validation"]},
+            )
+            self.assertEqual(database.validation_levels[collection["name"]], "strict")
+            self.assertEqual(database.validation_actions[collection["name"]], "error")
 
         customer = database.get("customers", 42)
         self.assertEqual(customer["fullName"], "Sample Customer")
@@ -232,7 +269,29 @@ class LoadTests(unittest.TestCase):
         self.assertNotIn("notesRaw", whitespace)
         self.assertNotIn("notesClassification", whitespace)
 
-        self.assertEqual(database.count("orders"), len(source_rows()["orders"]))
+        report = compare_source_counts(self.spec, source_rows(), database, rejects)
+        self.assertEqual(
+            [
+                (item["sourceTable"], item["sourceRows"], item["unloadedRows"], item["documents"])
+                for item in report
+            ],
+            [
+                ("customers", 1, 0, 1),
+                ("addresses", 2, 0, 2),
+                ("products", 3, 0, 3),
+                ("orders", 3, 0, 3),
+                ("order_lines", 2, 0, 2),
+            ],
+        )
+        self.assertTrue(all(item["match"] for item in report))
+        self.assertIn(
+            "orders -> orders: source 3, unloaded 0, documents 3",
+            format_count_report(report),
+        )
+        self.assertIn(
+            "order_lines -> orders embedded: source 2, unloaded 0, documents 2",
+            format_count_report(report),
+        )
         again = load(self.spec, source_rows(), database, grok, rejects)
         self.assertEqual(again, 0)
         self.assertEqual(grok.calls, [NOTE])
@@ -241,6 +300,51 @@ class LoadTests(unittest.TestCase):
         self.assertEqual(database.count("products"), 3)
         self.assertEqual(database.count("orders"), 3)
         self.assertEqual(len(database.indexes), 2)
+        self.assertEqual(
+            compare_source_counts(self.spec, source_rows(), database, rejects),
+            report,
+        )
+
+    def test_source_counts_leave_rejected_rows_unloaded(self):
+        database = MemoryDatabase()
+        rows = source_rows()
+        bad = "This note should be rejected."
+        rows["orders"][0]["notes"] = bad
+        grok = StubGrok({bad: json.dumps({"sentiment": "nope"})})
+        rejects = []
+        load(self.spec, rows, database, grok, rejects)
+
+        self.assertEqual(len(rejects), 1)
+        self.assertEqual(rejects[0]["sourceTable"], "orders")
+        self.assertEqual(rejects[0]["primaryKey"], 9001)
+        self.assertEqual(rejects[0]["targetCollection"], "orders")
+        self.assertEqual(rejects[0]["targetPath"], "notesClassification")
+        self.assertEqual(rejects[0]["reason"], "missing issueCategory")
+        self.assertIsNone(database.get("orders", 9001))
+        self.assertIsNotNone(database.get("orders", 9002))
+        self.assertIsNotNone(database.get("orders", 9003))
+        report = compare_source_counts(self.spec, rows, database, rejects)
+        self.assertEqual(
+            [
+                (item["sourceTable"], item["sourceRows"], item["unloadedRows"], item["documents"])
+                for item in report
+            ],
+            [
+                ("customers", 1, 0, 1),
+                ("addresses", 2, 0, 2),
+                ("products", 3, 0, 3),
+                ("orders", 3, 1, 2),
+                ("order_lines", 2, 2, 0),
+            ],
+        )
+        self.assertTrue(all(item["match"] for item in report))
+
+        load(self.spec, rows, database, grok, rejects)
+        self.assertEqual(database.count("customers"), 1)
+        self.assertEqual(database.count("addresses"), 2)
+        self.assertEqual(database.count("products"), 3)
+        self.assertEqual(database.count("orders"), 2)
+        self.assertIsNone(database.get("orders", 9001))
 
     def test_invalid_grok_output_is_rejected_and_not_loaded(self):
         database = MemoryDatabase()
@@ -315,6 +419,82 @@ class LoadTests(unittest.TestCase):
         self.assertEqual(database.docs, {})
         self.assertEqual(database.indexes, [])
         self.assertEqual(database.validators, {})
+
+    def test_recorded_approval_hash(self):
+        self.assertEqual(self.spec["approval"]["status"], "approved")
+        self.assertEqual(self.spec["approval"]["approver"], "Anshul Jhansiwale")
+        self.assertEqual(self.spec["approval"]["approvedAt"], "2026-11-07T15:47:00Z")
+        self.assertEqual(self.spec["approval"]["changes"], [])
+        self.assertEqual(
+            self.spec["approval"]["specHash"],
+            "fdd95fd46110a6bb345a7344d46b670a5f2e820f45d6241d3c6308a664547369",
+        )
+        self.assertEqual(spec_hash(self.spec), self.spec["approval"]["specHash"])
+
+    def test_create_index_uses_partial_filter_when_the_spec_has_one(self):
+        spec = copy.deepcopy(self.spec)
+        for item in spec["indexPlan"]["indexes"]:
+            if item["name"] == "type_1_priceCents_1":
+                item["partialFilter"] = {"type": "book"}
+        spec["approval"]["specHash"] = spec_hash(spec)
+        database = MemoryDatabase()
+        load(spec, source_rows(), database, StubGrok({NOTE: CLASSIFIED}), [])
+        created = [item for item in database.indexes if item["name"] == "type_1_priceCents_1"]
+        self.assertEqual(len(created), 1)
+        self.assertEqual(created[0]["partialFilter"], {"type": "book"})
+        self.assertEqual(list(created[0]["keys"].items()), [("type", 1), ("priceCents", 1)])
+        self.assertEqual(len(database.indexes), 2)
+
+    def test_long_fields_follow_the_validator(self):
+        schema = self.spec["documentModel"]["collections"][3]["validation"]
+        document = {
+            "_id": 9001,
+            "customer": {"customerId": 42, "fullName": "Sample Customer", "email": "customer@example.com"},
+            "shipAddressId": 7,
+            "placedAt": datetime.fromisoformat("2024-11-02T15:04:00"),
+            "status": "shipped",
+            "lines": [{"orderLineId": 1, "productId": 1001, "quantity": 2, "unitPriceCents": 2400}],
+            "notesRaw": NOTE,
+        }
+        encoded = apply_bson_types(document, schema, long_type=lambda number: ("long", number))
+        self.assertEqual(encoded["_id"], ("long", 9001))
+        self.assertEqual(encoded["customer"]["customerId"], ("long", 42))
+        self.assertEqual(encoded["shipAddressId"], ("long", 7))
+        self.assertEqual(encoded["lines"][0]["quantity"], ("long", 2))
+        self.assertEqual(encoded["notesRaw"], NOTE)
+        self.assertEqual(encoded["placedAt"], document["placedAt"])
+        self.assertIs(encoded["customer"]["fullName"], document["customer"]["fullName"])
+        self.assertIsInstance(document["_id"], int)
+        self.assertNotIsInstance(document["_id"], tuple)
+        flagged = apply_bson_types({"isCurrent": True, "_id": 7}, {
+            "bsonType": "object",
+            "properties": {
+                "_id": {"bsonType": "long"},
+                "isCurrent": {"bsonType": "bool"},
+            },
+        }, long_type=lambda number: ("long", number))
+        self.assertIs(flagged["isCurrent"], True)
+        self.assertEqual(flagged["_id"], ("long", 7))
+
+    def test_one_client_is_reused_for_the_process(self):
+        from migration import store
+
+        store._CLIENTS.clear()
+        created = []
+
+        def factory(uri):
+            created.append(uri)
+            return {"uri": uri}
+
+        try:
+            first = shared_client("mongodb://example", factory)
+            second = shared_client("mongodb://example", factory)
+            other = shared_client("mongodb://other", factory)
+            self.assertIs(first, second)
+            self.assertEqual(other, {"uri": "mongodb://other"})
+            self.assertEqual(created, ["mongodb://example", "mongodb://other"])
+        finally:
+            store._CLIENTS.clear()
 
     def test_cli_checks_the_hash_before_a_load(self):
         self.assertEqual(main(["--spec", str(SPEC_PATH)]), 0)
