@@ -31,7 +31,7 @@
         "primaryKey": [
           "customer_id"
         ],
-        "cardinalityNote": "About 500000 rows. Profile fields change rarely."
+        "cardinalityNote": "customers: about 500000 rows. Profile fields change rarely."
       },
       {
         "name": "addresses",
@@ -85,7 +85,7 @@
             "name": "is_current",
             "dataType": "NUMBER(1)",
             "nullable": false,
-            "notes": "CHECK (is_current IN (0, 1)). Default 1."
+            "notes": "CHECK (is_current IN (0, 1))"
           }
         ],
         "primaryKey": [
@@ -102,7 +102,7 @@
             ]
           }
         ],
-        "cardinalityNote": "About 3 per customer on average. History is retained with no declared upper bound. Address-book edits are independent of profile edits."
+        "cardinalityNote": "addresses: about 3 per customer on average. History is retained. No declared upper bound. Address-book edits are independent of profile edits."
       },
       {
         "name": "products",
@@ -121,7 +121,7 @@
             "name": "type",
             "dataType": "VARCHAR2(20)",
             "nullable": false,
-            "notes": "CHECK (type IN ('book', 'electronics', 'clothing')). Subtype discriminator."
+            "notes": "CHECK (type IN ('book', 'electronics', 'clothing')). type is a closed subtype discriminator."
           },
           {
             "name": "name",
@@ -182,7 +182,7 @@
             "sku"
           ]
         ],
-        "cardinalityNote": "About 20000 rows across book, electronics, and clothing."
+        "cardinalityNote": "products: about 20000 rows. type is a closed subtype discriminator."
       },
       {
         "name": "orders",
@@ -216,7 +216,7 @@
             "name": "notes",
             "dataType": "CLOB",
             "nullable": true,
-            "notes": "Free text from the customer or from support. No source schema."
+            "notes": "notes is free text from the customer or from support. It has no schema."
           }
         ],
         "primaryKey": [
@@ -242,7 +242,7 @@
             ]
           }
         ],
-        "cardinalityNote": "About 2000000 rows."
+        "cardinalityNote": "orders: about 2000000 rows. notes is free text from the customer or from support. It has no schema."
       },
       {
         "name": "order_lines",
@@ -296,7 +296,7 @@
             ]
           }
         ],
-        "cardinalityNote": "Average 3 per order. Observed maximum 40."
+        "cardinalityNote": "order_lines: average 3 per order, observed maximum 40."
       }
     ],
     "accessPaths": [
@@ -823,7 +823,7 @@
         "create": true
       }
     ],
-    "notes": "Three stated access paths and no measured slow-query log. evidence is stated-query. The script creates the two indexes with create true. The default _id index already serves q-order-by-id. No address index is proposed, because no access path reads the address book. No partial index is proposed, because no access path filters a subtype field. products.sku remains a unique key on the relational model only. This slice adds no unique index for it, because no access path looks up by sku."
+    "notes": "Three access paths were stated and each gets one entry. q-order-by-id is a point read on orders._id, which the default _id_ index already serves, so nothing is created; lines and the customer snapshot are embedded, so it needs no other index. q-products-by-type-price puts the type discriminator first and the price range second, which also returns the results sorted by priceCents ascending, so there is no in-memory sort. It has no partialFilter because the query covers every product type. q-recent-orders-by-customer uses the snapshot path customer.customerId first and then placedAt descending, so it matches the most-recent-first sort. The migration creates two indexes. Evidence is stated-query for all three because no measured slow-query log was supplied. The source UNIQUE key on products.sku was deliberately not promoted because no access path reads by sku. Foreign keys get no index because no access path uses them: orders.shipAddressId, orders.lines.productId, and addresses.customerId. No partial indexes on subtype fields (author, brand, size) were added, since no access path filters on them."
   },
   "fieldMapping": {
     "mappings": [
@@ -1155,9 +1155,9 @@
   },
   "approval": {
     "status": "approved",
-    "approver": "migration architect",
-    "approvedAt": "2026-11-01T11:14:00Z",
+    "approver": "Anshul Jhansiwale",
+    "approvedAt": "2026-11-07T16:11:00Z",
     "changes": [],
-    "specHash": "e1c0c5cf130e3cd5471a811e7a5b3c0e529d8438348e7f5ba611382474347fba"
+    "specHash": "fdd95fd46110a6bb345a7344d46b670a5f2e820f45d6241d3c6308a664547369"
   }
 }

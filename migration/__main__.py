@@ -4,7 +4,13 @@ import argparse
 import json
 import sys
 
-from migration.load import SpecRejected, UnrecognizedPredicate, load
+from migration.load import (
+    SpecRejected,
+    UnrecognizedPredicate,
+    compare_source_counts,
+    format_count_report,
+    load,
+)
 from migration.store import MemoryDatabase, MongoDatabase
 
 
@@ -42,9 +48,13 @@ def main(argv=None):
         return 2
     with open(args.rejects, "w", encoding="utf-8") as handle:
         for line in rejects:
-            handle.write(json.dumps(line) + "\n")
-    for name in database.docs if isinstance(database, MemoryDatabase) else []:
-        print(f"{name} {database.count(name)}")
+            handle.write(json.dumps(line, ensure_ascii=False) + "\n")
+    report = compare_source_counts(spec, source, database, rejects)
+    print(format_count_report(report))
+    if rejects:
+        print(f"rejects {len(rejects)} {args.rejects}")
+    if not all(item["match"] for item in report):
+        return 1
     return 0
 
 

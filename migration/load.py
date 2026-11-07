@@ -63,14 +63,100 @@ def load(spec, source, database, grok, rejects):
     return calls
 
 
+def compare_source_counts(spec, source, database, rejects):
+    """Compare each source table with the documents written for it.
+
+    A rejected source row is not a loaded document. Rows embedded in a parent
+    are unloaded when that parent row is rejected.
+    """
+    rejected = {(item["sourceTable"], item["primaryKey"]) for item in rejects}
+    report = []
+    owners = {}
+    for collection in spec["documentModel"]["collections"]:
+        name = collection["name"]
+        mappings = _collection_mappings(spec, name)
+        owner = _owner_mapping(mappings)
+        owners[name] = owner
+        table = owner["sourceTable"]
+        primary_key = owner["sourceColumn"]
+        rows = source.get(table, [])
+        unloaded = sum(1 for row in rows if (table, row.get(primary_key)) in rejected)
+        documents = database.count(name)
+        report.append(
+            {
+                "sourceTable": table,
+                "targetCollection": name,
+                "embedded": False,
+                "sourceRows": len(rows),
+                "unloadedRows": unloaded,
+                "documents": documents,
+                "match": documents == len(rows) - unloaded,
+            }
+        )
+
+    seen = set()
+    for item in spec["fieldMapping"]["mappings"]:
+        if item["transform"] != "parent":
+            continue
+        key = (item["sourceTable"], item["targetCollection"])
+        if key in seen:
+            continue
+        seen.add(key)
+        mappings = _collection_mappings(spec, item["targetCollection"])
+        prefix = _array_prefix(mappings)
+        if not prefix:
+            continue
+        owner = owners[item["targetCollection"]]
+        rows = source.get(item["sourceTable"], [])
+        written = 0
+        for document in database.documents(item["targetCollection"]):
+            written += len(document.get(prefix) or [])
+        unloaded = 0
+        for child in rows:
+            parent_id = child.get(item["sourceColumn"])
+            parent_rejected = (owner["sourceTable"], parent_id) in rejected
+            parent_missing = database.get(item["targetCollection"], parent_id) is None
+            if parent_rejected or parent_missing:
+                unloaded += 1
+        report.append(
+            {
+                "sourceTable": item["sourceTable"],
+                "targetCollection": item["targetCollection"],
+                "embedded": True,
+                "sourceRows": len(rows),
+                "unloadedRows": unloaded,
+                "documents": written,
+                "match": written == len(rows) - unloaded,
+            }
+        )
+    return report
+
+
+def format_count_report(report):
+    lines = []
+    for item in report:
+        label = f"{item['sourceTable']} -> {item['targetCollection']}"
+        if item["embedded"]:
+            label += " embedded"
+        lines.append(
+            f"{label}: source {item['sourceRows']}, "
+            f"unloaded {item['unloadedRows']}, documents {item['documents']}"
+        )
+    return "\n".join(lines)
+
+
+def _collection_mappings(spec, name):
+    return [item for item in spec["fieldMapping"]["mappings"] if item["targetCollection"] == name]
+
+
+def _owner_mapping(mappings):
+    return next(item for item in mappings if item["targetPath"] == "_id" and item["transform"] == "copy")
+
+
 def _documents(spec, source, collection, grok, rejects, cache, digest):
     name = collection["name"]
-    mappings = [
-        item for item in spec["fieldMapping"]["mappings"] if item["targetCollection"] == name
-    ]
-    owner = next(
-        item for item in mappings if item["targetPath"] == "_id" and item["transform"] == "copy"
-    )
+    mappings = _collection_mappings(spec, name)
+    owner = _owner_mapping(mappings)
     validation = collection["validation"]
     discriminator = (collection.get("discriminator") or {}).get("field")
     for row in source.get(owner["sourceTable"], []):
