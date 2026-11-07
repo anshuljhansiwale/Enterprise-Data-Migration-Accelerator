@@ -100,6 +100,6 @@ A mismatch on those decisions is a defect in the spec format or the skills, and 
 
 - ERD and other image uploads. This slice accepts SQL DDL plus a written access-path list.
 - Real-time BI, change streams, and dashboards. The outcome of this slice is a document model and a batch load.
-- A live multi-agent orchestrator, a UI, and a running Grok batch.
+- A live multi-agent orchestrator and a UI. The load calls the Grok API for each mapping whose transform is `grok`.
 - Indexes inferred from table or column names when no access path asks for them.
 - Grok choosing a document shape, a collection layout, or a target JSON shape. The shape is written in the spec before any batch runs.

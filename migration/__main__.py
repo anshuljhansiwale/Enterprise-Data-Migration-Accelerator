@@ -4,6 +4,7 @@ import argparse
 import json
 import sys
 
+from migration.grok_api import client_for
 from migration.load import SpecRejected, UnrecognizedPredicate, load
 from migration.store import MemoryDatabase, MongoDatabase
 
@@ -36,7 +37,7 @@ def main(argv=None):
     database = MongoDatabase(args.uri, args.database) if args.uri else MemoryDatabase()
     rejects = []
     try:
-        load(spec, source, database, _NotImplementedGrok(), rejects)
+        load(spec, source, database, client_for(spec), rejects)
     except (SpecRejected, UnrecognizedPredicate) as error:
         print(str(error), file=sys.stderr)
         return 2
@@ -46,11 +47,6 @@ def main(argv=None):
     for name in database.docs if isinstance(database, MemoryDatabase) else []:
         print(f"{name} {database.count(name)}")
     return 0
-
-
-class _NotImplementedGrok:
-    def classify(self, text, target_shape):
-        raise RuntimeError("a live Grok call is outside this slice; tests pass a stub client")
 
 
 if __name__ == "__main__":
