@@ -426,7 +426,7 @@ class LoadTests(unittest.TestCase):
     def test_recorded_approval_hash(self):
         self.assertEqual(self.spec["approval"]["status"], "approved")
         self.assertEqual(self.spec["approval"]["approver"], "Anshul Jhansiwale")
-        self.assertEqual(self.spec["approval"]["approvedAt"], "2026-11-09T14:30:00Z")
+        self.assertEqual(self.spec["approval"]["approvedAt"], "2026-11-09T18:51:00Z")
         self.assertEqual(self.spec["approval"]["changes"], [])
         self.assertEqual(
             self.spec["approval"]["specHash"],
