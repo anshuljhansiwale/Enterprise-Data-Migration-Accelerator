@@ -1,6 +1,7 @@
 """BSON encoding for the MongoDB load, and the local .env URI."""
 
 import os
+import subprocess
 import tempfile
 import unittest
 from datetime import datetime
@@ -8,7 +9,13 @@ from pathlib import Path
 
 from bson import Int64
 
-from migration.__main__ import _dotenv_value, apply_local_env, mongodb_uri, timestamped_database
+from migration.__main__ import (
+    _dotenv_value,
+    _redacted_connection_error,
+    apply_local_env,
+    mongodb_uri,
+    timestamped_database,
+)
 from migration.store import _as_bson
 
 
@@ -64,3 +71,23 @@ class DatabaseNameTests(unittest.TestCase):
         self.assertEqual(name, "order_management_2026-11-09_190530")
         self.assertLess(len(name), 64)
         self.assertFalse(any(char in name for char in '/\\. "$'))
+
+    def test_connection_error_hides_the_uri(self):
+        uri = "mongodb+srv://demo:secret@cluster.example"
+        message = _redacted_connection_error(RuntimeError("failed " + uri), uri)
+        self.assertNotIn("secret", message)
+        self.assertIn("MONGODB_URI", message)
+
+    def test_demo_script_stops_before_connecting_when_the_uri_is_missing(self):
+        env = os.environ.copy()
+        env.pop("MONGODB_URI", None)
+        result = subprocess.run(
+            ["sh", "scripts/load-demo.sh"],
+            cwd=Path(__file__).resolve().parents[1],
+            env=env,
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+        self.assertEqual(result.returncode, 2)
+        self.assertIn("Atlas load did not run", result.stderr)

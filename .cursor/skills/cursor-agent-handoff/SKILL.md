@@ -27,12 +27,12 @@ After a successful load, compare each source table's row count with the MongoDB 
 1. Collect `relationalModel`, `documentModel`, `indexPlan`, and `fieldMapping` from the group. If the human listed edits, those edits are `approval.changes`. Otherwise `changes` is empty.
 2. Set `approval.status` to `approved`, `approver` to the human's name when the chat shows one, otherwise `migration architect`, and `approvedAt` to the current time in ISO-8601.
 3. Compute `approval.specHash` as the spec format defines it: SHA-256 of the canonical JSON of `{ specVersion, relationalModel, documentModel, indexPlan, fieldMapping }`, keys sorted at every depth, arrays left in order, `approval` excluded. If you cannot compute it, tell the cloud agent to compute it and to stop without writing files when it cannot.
-4. Start one Cursor cloud agent on this repository. Give it the four sections, the approval record, and the script rules below. Tell it to follow those rules and not to redesign the model.
-5. Post the agent link in the group when it starts. Post the result in the group when it finishes.
+4. Start one Cursor cloud agent on this repository. Give it the four sections, the approval record, and the script rules below. Tell it to follow those rules and not to redesign the model. Tell it to finish by running `sh scripts/load-demo.sh` and to bring that command's output back.
+5. Post the agent link in the group when it starts. When it finishes, post the loader output in the group: the database name, the Grok call count, the collection counts, the index names, and the reject count. Omit `MONGODB_URI` and `XAI_API_KEY`.
 
 ## Script rules for the cloud agent
 
-Implement the approved spec in Node.js or Python, one of them, and name the choice in the PR.
+The Python loader in this repository is the implementation. Use it. Do not add a second loader.
 
 - Refuse to write a load when `approval.status` is not `approved` or `approval.specHash` is null.
 - Recompute the canonical hash and exit before any write when it differs.
@@ -47,6 +47,7 @@ Implement the approved spec in Node.js or Python, one of them, and name the choi
 - Cache a valid Grok result by `specHash`, source primary key, target path, and a hash of the source text.
 - Tests use a stub Grok client. Cover the mappings, a rejected Grok payload, a second run that does not duplicate documents, the `create: true` indexes, the hash refusal, and a source-count to document-count comparison that leaves rejected rows unloaded.
 - When the tests finish, log that run under `runs/<specHash>/<loggedAt>/`. Write `spec-hash.txt`, `approved-spec.json`, a copy of the test files, `results.json`, and `results.txt`. A new spec hash gets a new directory. The same hash keeps every later run. This log is not a collection, an index, or a Grok call. `python -m unittest discover -s tests -t .` writes it.
+- Tests use the stub client and must not connect to Atlas. After they pass, run `sh scripts/load-demo.sh`. The script reads `MONGODB_URI` and `XAI_API_KEY` from the environment, creates a new database named `order_management_<local date and time>`, and loads `fixtures/order-management/source-rows.json` with the existing loader. If `MONGODB_URI` is missing, stop and say the Atlas load did not run. Return the script's stdout. Do not print either secret.
 
 ## Validate before starting the agent
 

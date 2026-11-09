@@ -43,12 +43,21 @@ def main(argv=None):
     uri = mongodb_uri(args.uri, os.environ, _ENV_FILE)
     database_name = args.database or timestamped_database(datetime.now())
     print("database", database_name)
-    database = MongoDatabase(uri, database_name) if uri else MemoryDatabase()
-    rejects = []
     try:
+        database = MongoDatabase(uri, database_name) if uri else MemoryDatabase()
+        rejects = []
         calls = load(spec, source, database, client_for(spec), rejects)
     except (SpecRejected, UnrecognizedPredicate) as error:
         print(str(error), file=sys.stderr)
+        return 2
+    except Exception as error:
+        if not uri:
+            raise
+        text = str(error)
+        if uri not in text:
+            print(text, file=sys.stderr)
+            return 2
+        print(_redacted_connection_error(error, uri), file=sys.stderr)
         return 2
     with open(args.rejects, "w", encoding="utf-8") as handle:
         for line in rejects:
@@ -61,6 +70,11 @@ def main(argv=None):
     print("indexes", " ".join(created))
     print("rejects", len(rejects))
     return 0
+
+
+def _redacted_connection_error(error, uri):
+    message = str(error).replace(uri, "MONGODB_URI") if uri else str(error)
+    return "MongoDB connection failed: " + message
 
 
 def timestamped_database(moment):
