@@ -50,11 +50,8 @@ class MongoDatabase:
         self.db = self.client[database]
 
     def upsert(self, collection, document):
-        self.db[collection].update_one(
-            {"_id": document["_id"]},
-            {"$set": document},
-            upsert=True,
-        )
+        document = _as_bson(document)
+        self.db[collection].replace_one({"_id": document["_id"]}, document, upsert=True)
 
     def count(self, collection):
         return self.db[collection].count_documents({})
@@ -74,3 +71,18 @@ class MongoDatabase:
             self.db.command("collMod", collection, validator=validator)
         else:
             self.db.create_collection(collection, validator=validator)
+
+
+def _as_bson(value):
+    """Store Python ints as BSON int64. The spec validators require long."""
+    if isinstance(value, bool) or value is None or isinstance(value, (str, float)):
+        return value
+    if isinstance(value, int):
+        from bson import Int64
+
+        return Int64(value)
+    if isinstance(value, list):
+        return [_as_bson(item) for item in value]
+    if isinstance(value, dict):
+        return {key: _as_bson(item) for key, item in value.items()}
+    return value

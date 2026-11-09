@@ -455,6 +455,40 @@ class LoadTests(unittest.TestCase):
             self.assertFalse((root / "runs" / ("0" * 64)).exists())
 
 
+class SourceFileTests(unittest.TestCase):
+    def test_sample_has_at_least_ten_of_each_and_loads(self):
+        source = json.loads((ROOT / "fixtures" / "order-management" / "source-rows.json").read_text(encoding="utf-8"))
+        for name in ("customers", "addresses", "products", "orders", "order_lines"):
+            self.assertGreaterEqual(len(source[name]), 10)
+        customer_ids = {row["customer_id"] for row in source["customers"]}
+        address_ids = {row["address_id"] for row in source["addresses"]}
+        product_ids = {row["product_id"] for row in source["products"]}
+        order_ids = {row["order_id"] for row in source["orders"]}
+        self.assertTrue(all(row["customer_id"] in customer_ids for row in source["addresses"]))
+        self.assertTrue(all(row["customer_id"] in customer_ids for row in source["orders"]))
+        self.assertTrue(all(row["ship_address_id"] in address_ids for row in source["orders"]))
+        self.assertTrue(all(row["order_id"] in order_ids for row in source["order_lines"]))
+        self.assertTrue(all(row["product_id"] in product_ids for row in source["order_lines"]))
+
+        class AnyGrok:
+            def classify(self, text, target_shape):
+                return json.dumps(
+                    {"sentiment": "neutral", "issueCategory": "other", "summary": text[:280]}
+                )
+
+        database = MemoryDatabase()
+        calls = load(json.loads(SPEC_PATH.read_text(encoding="utf-8")), source, database, AnyGrok(), [])
+        self.assertEqual(calls, 7)
+        self.assertEqual(database.count("customers"), 10)
+        self.assertEqual(database.count("addresses"), 12)
+        self.assertEqual(database.count("products"), 10)
+        self.assertEqual(database.count("orders"), 10)
+        self.assertIn("notesClassification", database.get("orders", 9001))
+        self.assertNotIn("notesClassification", database.get("orders", 9006))
+        self.assertEqual(database.get("products", 1001)["author"], "Sample Author")
+        self.assertNotIn("author", database.get("products", 3001))
+
+
 install(SPEC_PATH, [Path(__file__)], ROOT)
 
 
