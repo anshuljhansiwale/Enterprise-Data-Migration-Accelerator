@@ -1,10 +1,13 @@
 """Stub-Grok coverage for the approved order-management load."""
 
 import copy
+import io
 import json
 import os
+import subprocess
 import tempfile
 import unittest
+from contextlib import redirect_stderr
 from datetime import datetime
 from pathlib import Path
 
@@ -423,7 +426,7 @@ class LoadTests(unittest.TestCase):
     def test_recorded_approval_hash(self):
         self.assertEqual(self.spec["approval"]["status"], "approved")
         self.assertEqual(self.spec["approval"]["approver"], "Anshul Jhansiwale")
-        self.assertEqual(self.spec["approval"]["approvedAt"], "2026-11-07T16:11:00Z")
+        self.assertEqual(self.spec["approval"]["approvedAt"], "2026-11-09T14:30:00Z")
         self.assertEqual(self.spec["approval"]["changes"], [])
         self.assertEqual(
             self.spec["approval"]["specHash"],
@@ -508,6 +511,39 @@ class LoadTests(unittest.TestCase):
             self.assertEqual(main(["--spec", pending_path]), 2)
         finally:
             os.unlink(pending_path)
+
+    def test_cli_refuses_a_load_without_a_uri(self):
+        previous = os.environ.pop("MONGODB_URI", None)
+        try:
+            with tempfile.NamedTemporaryFile("w", suffix=".json", delete=False) as handle:
+                json.dump(source_rows(), handle)
+                source_path = handle.name
+            try:
+                captured = io.StringIO()
+                with redirect_stderr(captured):
+                    code = main(["--spec", str(SPEC_PATH), "--source", source_path, "--rejects", source_path + ".rejects"])
+                self.assertEqual(code, 2)
+                self.assertIn("Atlas load did not run", captured.getvalue())
+            finally:
+                os.unlink(source_path)
+        finally:
+            if previous is not None:
+                os.environ["MONGODB_URI"] = previous
+
+    def test_demo_script_stops_when_the_uri_is_missing(self):
+        env = os.environ.copy()
+        env.pop("MONGODB_URI", None)
+        result = subprocess.run(
+            ["sh", "scripts/load-demo.sh"],
+            cwd=ROOT,
+            env=env,
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+        self.assertEqual(result.returncode, 2)
+        self.assertIn("Atlas load did not run", result.stderr)
+        self.assertEqual(result.stdout, "")
 
     def test_embed_keeps_a_copy_path_without_a_dot(self):
         spec = {

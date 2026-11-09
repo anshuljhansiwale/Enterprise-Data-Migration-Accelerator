@@ -1,0 +1,67 @@
+{
+  "customers": [
+    {"customer_id": 101, "full_name": "Mira Shah", "email": "mira.shah@example.com", "created_at": "2020-01-15T00:00:00"},
+    {"customer_id": 102, "full_name": "Owen Blake", "email": "owen.blake@example.com", "created_at": "2020-03-02T00:00:00"},
+    {"customer_id": 103, "full_name": "Priya Nair", "email": "priya.nair@example.com", "created_at": "2020-06-18T00:00:00"},
+    {"customer_id": 104, "full_name": "Jonah Ellis", "email": "jonah.ellis@example.com", "created_at": "2021-01-09T00:00:00"},
+    {"customer_id": 105, "full_name": "Sofia Rahman", "email": "sofia.rahman@example.com", "created_at": "2021-04-22T00:00:00"},
+    {"customer_id": 106, "full_name": "Caleb Ortiz", "email": "caleb.ortiz@example.com", "created_at": "2021-08-11T00:00:00"},
+    {"customer_id": 107, "full_name": "Hannah Cho", "email": "hannah.cho@example.com", "created_at": "2022-02-01T00:00:00"},
+    {"customer_id": 108, "full_name": "Victor Adeyemi", "email": "victor.adeyemi@example.com", "created_at": "2022-07-19T00:00:00"},
+    {"customer_id": 109, "full_name": "Lila Berg", "email": "lila.berg@example.com", "created_at": "2023-01-30T00:00:00"},
+    {"customer_id": 110, "full_name": "Noah Feldman", "email": "noah.feldman@example.com", "created_at": "2023-09-14T00:00:00"}
+  ],
+  "addresses": [
+    {"address_id": 201, "customer_id": 101, "label": "home", "line1": "1 Sample Street", "line2": null, "city": "Austin", "region": "TX", "postal_code": "78701", "country_code": "US", "is_current": 1},
+    {"address_id": 211, "customer_id": 101, "label": "old", "line1": "9 Archive Lane", "line2": null, "city": "Austin", "region": "TX", "postal_code": "78704", "country_code": "US", "is_current": 0},
+    {"address_id": 202, "customer_id": 102, "label": "home", "line1": "14 Harbor Road", "line2": "Apt 2", "city": "Seattle", "region": "WA", "postal_code": "98101", "country_code": "US", "is_current": 1},
+    {"address_id": 203, "customer_id": 103, "label": "home", "line1": "22 River Lane", "line2": null, "city": "Chicago", "region": "IL", "postal_code": "60601", "country_code": "US", "is_current": 1},
+    {"address_id": 204, "customer_id": 104, "label": "home", "line1": "8 Market Street", "line2": null, "city": "Denver", "region": "CO", "postal_code": "80202", "country_code": "US", "is_current": 1},
+    {"address_id": 205, "customer_id": 105, "label": "home", "line1": "40 Cedar Avenue", "line2": "Suite 5", "city": "Boston", "region": "MA", "postal_code": "02108", "country_code": "US", "is_current": 1},
+    {"address_id": 206, "customer_id": 106, "label": "home", "line1": "3 Plaza Drive", "line2": null, "city": "Phoenix", "region": "AZ", "postal_code": "85004", "country_code": "US", "is_current": 1},
+    {"address_id": 207, "customer_id": 107, "label": "home", "line1": "17 Lake View", "line2": null, "city": "Minneapolis", "region": "MN", "postal_code": "55401", "country_code": "US", "is_current": 1},
+    {"address_id": 208, "customer_id": 108, "label": "home", "line1": "55 King Street", "line2": null, "city": "Atlanta", "region": "GA", "postal_code": "30303", "country_code": "US", "is_current": 1},
+    {"address_id": 209, "customer_id": 109, "label": "home", "line1": "6 Orchard Way", "line2": null, "city": "Portland", "region": "OR", "postal_code": "97204", "country_code": "US", "is_current": 1},
+    {"address_id": 210, "customer_id": 110, "label": "home", "line1": "28 Hill Road", "line2": null, "city": "Miami", "region": "FL", "postal_code": "33130", "country_code": "US", "is_current": 1},
+    {"address_id": 212, "customer_id": 110, "label": "old", "line1": "2 Coast Road", "line2": null, "city": "Miami", "region": "FL", "postal_code": "33139", "country_code": "US", "is_current": 0}
+  ],
+  "products": [
+    {"product_id": 1001, "sku": "BK-1001", "type": "book", "name": "Sample Field Guide", "price_cents": 2400, "author": "Sample Author", "isbn": "9780000000001", "page_count": 320},
+    {"product_id": 1002, "sku": "BK-1002", "type": "book", "name": "Harbor Atlas", "price_cents": 1800, "author": "Nora Hale", "isbn": "9780000000002", "page_count": 144},
+    {"product_id": 1003, "sku": "BK-1003", "type": "book", "name": "Kitchen Notes", "price_cents": 3200, "author": "Eli Ward", "isbn": "9780000000003", "page_count": 256},
+    {"product_id": 1004, "sku": "BK-1004", "type": "book", "name": "Night Trains", "price_cents": 4500, "author": "Ada Pell", "isbn": "9780000000004", "page_count": 412},
+    {"product_id": 2001, "sku": "EL-2001", "type": "electronics", "name": "Sample Radio", "price_cents": 8900, "brand": "Sample Brand", "warranty_months": 24},
+    {"product_id": 2002, "sku": "EL-2002", "type": "electronics", "name": "Desk Lamp", "price_cents": 4200, "brand": "Northwind", "warranty_months": 12},
+    {"product_id": 2003, "sku": "EL-2003", "type": "electronics", "name": "Travel Speaker", "price_cents": 6500, "brand": "Lumen", "warranty_months": 18},
+    {"product_id": 3001, "sku": "CL-3001", "type": "clothing", "name": "Sample Jacket", "price_cents": 12000, "size": "M", "color": "navy", "material": "wool"},
+    {"product_id": 3002, "sku": "CL-3002", "type": "clothing", "name": "Cotton Shirt", "price_cents": 2800, "size": "L", "color": "white", "material": "cotton"},
+    {"product_id": 3003, "sku": "CL-3003", "type": "clothing", "name": "Trail Cap", "price_cents": 1600, "size": "S", "color": "green", "material": "canvas"}
+  ],
+  "orders": [
+    {"order_id": 9001, "customer_id": 101, "ship_address_id": 201, "placed_at": "2024-11-02T15:04:00", "status": "shipped", "notes": "Box arrived crushed and the shipment was two weeks late."},
+    {"order_id": 9002, "customer_id": 102, "ship_address_id": 202, "placed_at": "2024-10-28T11:20:00", "status": "delivered", "notes": "The jacket color was not the navy shown on the page."},
+    {"order_id": 9003, "customer_id": 103, "ship_address_id": 203, "placed_at": "2024-10-15T09:05:00", "status": "shipped", "notes": "I was charged twice for this order."},
+    {"order_id": 9004, "customer_id": 104, "ship_address_id": 204, "placed_at": "2024-09-30T16:40:00", "status": "delivered", "notes": "Arrived a day early and the packaging was perfect."},
+    {"order_id": 9005, "customer_id": 105, "ship_address_id": 205, "placed_at": "2024-09-12T13:15:00", "status": "delivered", "notes": "The radio works well and the warranty card was included."},
+    {"order_id": 9006, "customer_id": 106, "ship_address_id": 206, "placed_at": "2024-08-21T10:00:00", "status": "placed", "notes": null},
+    {"order_id": 9007, "customer_id": 107, "ship_address_id": 207, "placed_at": "2024-08-02T18:45:00", "status": "placed", "notes": "   "},
+    {"order_id": 9008, "customer_id": 108, "ship_address_id": 208, "placed_at": "2024-07-19T08:30:00", "status": "shipped", "notes": "Please refund the shipping fee. The invoice does not match the amount I paid."},
+    {"order_id": 9009, "customer_id": 109, "ship_address_id": 209, "placed_at": "2024-06-11T12:10:00", "status": "delivered", "notes": "Gift wrap was a nice touch. Thank you."},
+    {"order_id": 9010, "customer_id": 110, "ship_address_id": 210, "placed_at": "2024-05-03T17:55:00", "status": "cancelled", "notes": null}
+  ],
+  "order_lines": [
+    {"order_line_id": 1, "order_id": 9001, "product_id": 1001, "quantity": 2, "unit_price_cents": 2400},
+    {"order_line_id": 2, "order_id": 9001, "product_id": 2001, "quantity": 1, "unit_price_cents": 8900},
+    {"order_line_id": 3, "order_id": 9002, "product_id": 3001, "quantity": 1, "unit_price_cents": 12000},
+    {"order_line_id": 4, "order_id": 9003, "product_id": 2002, "quantity": 1, "unit_price_cents": 4200},
+    {"order_line_id": 5, "order_id": 9003, "product_id": 3002, "quantity": 2, "unit_price_cents": 2800},
+    {"order_line_id": 6, "order_id": 9004, "product_id": 1001, "quantity": 1, "unit_price_cents": 2400},
+    {"order_line_id": 7, "order_id": 9005, "product_id": 2001, "quantity": 1, "unit_price_cents": 8900},
+    {"order_line_id": 8, "order_id": 9006, "product_id": 1003, "quantity": 1, "unit_price_cents": 3200},
+    {"order_line_id": 9, "order_id": 9007, "product_id": 3003, "quantity": 3, "unit_price_cents": 1600},
+    {"order_line_id": 10, "order_id": 9008, "product_id": 2003, "quantity": 1, "unit_price_cents": 6500},
+    {"order_line_id": 11, "order_id": 9008, "product_id": 1004, "quantity": 1, "unit_price_cents": 4500},
+    {"order_line_id": 12, "order_id": 9009, "product_id": 3002, "quantity": 1, "unit_price_cents": 2800},
+    {"order_line_id": 13, "order_id": 9010, "product_id": 1002, "quantity": 2, "unit_price_cents": 1800}
+  ]
+}
