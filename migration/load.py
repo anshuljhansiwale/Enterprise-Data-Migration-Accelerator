@@ -64,6 +64,140 @@ def load(spec, source, database, grok, rejects):
     return calls
 
 
+def reconcile(spec, source, database, rejects):
+    """Compare each source table with the documents stored for it.
+
+    A rejected source row is not a loaded document. Rows that embed into a
+    parent are counted on that parent, and they are absent when the parent
+    row was rejected. This reads the target; it does not create a collection,
+    an index, or a Grok call.
+    """
+    rejected_ids = {}
+    for item in rejects:
+        rejected_ids.setdefault(item["sourceTable"], set()).add(item["primaryKey"])
+
+    mappings_by_collection = {}
+    for collection in spec["documentModel"]["collections"]:
+        mappings_by_collection[collection["name"]] = [
+            item
+            for item in spec["fieldMapping"]["mappings"]
+            if item["targetCollection"] == collection["name"]
+        ]
+    owners = {
+        name: _owner(mappings)["sourceTable"]
+        for name, mappings in mappings_by_collection.items()
+    }
+    embedded = {}
+    for collection_name, mappings in mappings_by_collection.items():
+        parent = next((item for item in mappings if item["transform"] == "parent"), None)
+        if parent is None:
+            continue
+        embedded[parent["sourceTable"]] = {
+            "collection": collection_name,
+            "prefix": _array_prefix(mappings),
+            "ownerTable": owners[collection_name],
+            "parentColumn": parent["sourceColumn"],
+            "mappings": mappings,
+        }
+
+    report = []
+    for table in spec["relationalModel"]["tables"]:
+        name = table["name"]
+        rows = source.get(name, [])
+        rejected = {
+            _norm_id(key) for key in rejected_ids.get(name, set())
+        }
+        rejected_rows = sum(1 for row in rows if _row_key(table, row) in rejected)
+        collection = next((cname for cname, owner in owners.items() if owner == name), None)
+        if collection is not None:
+            written = _count_loaded(database, collection, table, rows, rejected)
+            storage = "collection"
+        elif name in embedded:
+            info = embedded[name]
+            parent_rejected = {
+                _norm_id(key) for key in rejected_ids.get(info["ownerTable"], set())
+            }
+            written = _count_embedded(database, info, table, rows, rejected, parent_rejected)
+            storage = "embedded"
+        else:
+            written = 0
+            storage = "unmapped"
+        report.append(
+            {
+                "sourceTable": name,
+                "sourceRows": len(rows),
+                "documentsWritten": written,
+                "rejected": rejected_rows,
+                "storage": storage,
+            }
+        )
+    return report
+
+
+def _row_key(table, row):
+    columns = table.get("primaryKey") or []
+    if len(columns) != 1:
+        return None
+    return _norm_id(row.get(columns[0]))
+
+
+def _norm_id(value):
+    if isinstance(value, bool) or not isinstance(value, int):
+        return value
+    return int(value)
+
+
+def _count_loaded(database, collection, table, rows, rejected):
+    """Documents of this source table present in the collection.
+
+    Rejected primary keys are left out even when an older document still
+    occupies that _id, because this load did not write them.
+    """
+    present = {_norm_id(document.get("_id")) for document in database.each(collection)}
+    written = 0
+    for row in rows:
+        key = _row_key(table, row)
+        if key in rejected or key not in present:
+            continue
+        written += 1
+    return written
+
+
+def _count_embedded(database, info, table, rows, rejected, parent_rejected):
+    id_field = _embedded_id_field(info, table)
+    stored = {}
+    for document in database.each(info["collection"]):
+        parent_id = _norm_id(document.get("_id"))
+        if parent_id in parent_rejected:
+            continue
+        elements = document.get(info["prefix"]) or []
+        stored[parent_id] = {_norm_id(element.get(id_field)) for element in elements}
+    written = 0
+    for row in rows:
+        key = _row_key(table, row)
+        if key in rejected:
+            continue
+        parent_id = _norm_id(row.get(info["parentColumn"]))
+        if parent_id in parent_rejected:
+            continue
+        if key in stored.get(parent_id, set()):
+            written += 1
+    return written
+
+
+def _embedded_id_field(info, table):
+    columns = table.get("primaryKey") or []
+    if len(columns) != 1:
+        return None
+    prefix = info["prefix"] + "."
+    for item in info["mappings"]:
+        if item["transform"] != "copy" or item["sourceColumn"] != columns[0]:
+            continue
+        if item["targetPath"].startswith(prefix):
+            return item["targetPath"][len(prefix):]
+    return None
+
+
 def _documents(spec, source, collection, grok, rejects, cache, digest):
     name = collection["name"]
     mappings = [

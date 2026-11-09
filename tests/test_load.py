@@ -10,7 +10,7 @@ from pathlib import Path
 
 from migration.__main__ import main
 from migration.hashing import spec_hash
-from migration.load import SpecRejected, UnrecognizedPredicate, _embed, _lookup, load
+from migration.load import SpecRejected, UnrecognizedPredicate, _embed, _lookup, load, reconcile
 from migration.runlog import install, log_run
 from migration.store import MemoryDatabase
 
@@ -232,7 +232,16 @@ class LoadTests(unittest.TestCase):
         self.assertNotIn("notesRaw", whitespace)
         self.assertNotIn("notesClassification", whitespace)
 
-        self.assertEqual(database.count("orders"), len(source_rows()["orders"]))
+        loaded = source_rows()
+        report = {item["sourceTable"]: item for item in reconcile(self.spec, loaded, database, rejects)}
+        for name, rows in loaded.items():
+            self.assertEqual(report[name]["sourceRows"], len(rows))
+            self.assertEqual(report[name]["documentsWritten"], len(rows))
+            self.assertEqual(report[name]["rejected"], 0)
+        self.assertEqual(report["orders"]["storage"], "collection")
+        self.assertEqual(report["order_lines"]["storage"], "embedded")
+        self.assertNotIn("order_lines", database.docs)
+
         again = load(self.spec, source_rows(), database, grok, rejects)
         self.assertEqual(again, 0)
         self.assertEqual(grok.calls, [NOTE])
@@ -280,6 +289,20 @@ class LoadTests(unittest.TestCase):
         self.assertEqual(rejects[0]["rawModelOutput"], extra)
         self.assertEqual(rejects[1]["reason"], "sentiment is not an allowed value")
         self.assertEqual(database.count("customers"), 1)
+        report = {item["sourceTable"]: item for item in reconcile(self.spec, rows, database, rejects)}
+        self.assertEqual(report["orders"]["sourceRows"], 2)
+        self.assertEqual(report["orders"]["rejected"], 2)
+        self.assertEqual(report["orders"]["documentsWritten"], len(rows["orders"]) - len(rejects))
+        rejected_orders = {item["primaryKey"] for item in rejects}
+        expected_lines = sum(
+            1 for line in rows["order_lines"] if line["order_id"] not in rejected_orders
+        )
+        self.assertEqual(report["order_lines"]["sourceRows"], len(rows["order_lines"]))
+        self.assertEqual(report["order_lines"]["documentsWritten"], expected_lines)
+        self.assertEqual(expected_lines, 0)
+        self.assertEqual(report["customers"]["documentsWritten"], len(rows["customers"]))
+        self.assertEqual(report["addresses"]["documentsWritten"], len(rows["addresses"]))
+        self.assertEqual(report["products"]["documentsWritten"], len(rows["products"]))
 
     def test_unknown_invoke_when_writes_nothing(self):
         spec = copy.deepcopy(self.spec)

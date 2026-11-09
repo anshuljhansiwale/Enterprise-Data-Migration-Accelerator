@@ -8,7 +8,7 @@ from datetime import datetime
 from pathlib import Path
 
 from migration.grok_api import client_for
-from migration.load import SpecRejected, UnrecognizedPredicate, load
+from migration.load import SpecRejected, UnrecognizedPredicate, load, reconcile
 from migration.store import MemoryDatabase, MongoDatabase
 
 _ENV_FILE = Path(__file__).resolve().parents[1] / ".env"
@@ -69,6 +69,11 @@ def main(argv=None):
     created = [item["name"] for item in spec["indexPlan"]["indexes"] if item.get("create")]
     print("indexes", " ".join(created))
     print("rejects", len(rejects))
+    for item in reconcile(spec, source, database, rejects):
+        print(
+            f"{item['sourceTable']} source {item['sourceRows']} "
+            f"documents {item['documentsWritten']}"
+        )
     return 0
 
 

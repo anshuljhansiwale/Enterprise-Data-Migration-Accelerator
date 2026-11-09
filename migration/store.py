@@ -14,6 +14,9 @@ class MemoryDatabase:
     def count(self, collection):
         return len(self.docs.get(collection, {}))
 
+    def each(self, collection):
+        return list(self.docs.get(collection, {}).values())
+
     def get(self, collection, doc_id):
         return self.docs.get(collection, {}).get(_doc_key(doc_id))
 
@@ -55,6 +58,9 @@ class MongoDatabase:
 
     def count(self, collection):
         return self.db[collection].count_documents({})
+
+    def each(self, collection):
+        return list(self.db[collection].find({}))
 
     def get(self, collection, doc_id):
         return self.db[collection].find_one({"_id": doc_id})
