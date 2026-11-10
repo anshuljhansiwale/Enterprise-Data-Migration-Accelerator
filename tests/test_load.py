@@ -233,6 +233,16 @@ class LoadTests(unittest.TestCase):
         self.assertNotIn("notesClassification", whitespace)
 
         self.assertEqual(database.count("orders"), len(source_rows()["orders"]))
+        self.assertEqual(
+            [(item["sourceTable"], item["sourceRows"], item["documentsWritten"]) for item in database.source_comparison],
+            [
+                ("customers", 1, 1),
+                ("addresses", 2, 2),
+                ("products", 3, 3),
+                ("orders", 3, 3),
+                ("order_lines", 2, 2),
+            ],
+        )
         again = load(self.spec, source_rows(), database, grok, rejects)
         self.assertEqual(again, 0)
         self.assertEqual(grok.calls, [NOTE])
@@ -240,6 +250,16 @@ class LoadTests(unittest.TestCase):
         self.assertEqual(database.count("addresses"), 2)
         self.assertEqual(database.count("products"), 3)
         self.assertEqual(database.count("orders"), 3)
+        self.assertEqual(
+            [(item["sourceTable"], item["sourceRows"], item["documentsWritten"]) for item in database.source_comparison],
+            [
+                ("customers", 1, 1),
+                ("addresses", 2, 2),
+                ("products", 3, 3),
+                ("orders", 3, 3),
+                ("order_lines", 2, 2),
+            ],
+        )
         self.assertEqual(len(database.indexes), 2)
 
     def test_invalid_grok_output_is_rejected_and_not_loaded(self):
@@ -280,6 +300,14 @@ class LoadTests(unittest.TestCase):
         self.assertEqual(rejects[0]["rawModelOutput"], extra)
         self.assertEqual(rejects[1]["reason"], "sentiment is not an allowed value")
         self.assertEqual(database.count("customers"), 1)
+        comparison = {item["sourceTable"]: item for item in database.source_comparison}
+        self.assertEqual(comparison["orders"]["sourceRows"], 2)
+        self.assertEqual(comparison["orders"]["documentsWritten"], 0)
+        self.assertEqual(comparison["order_lines"]["sourceRows"], 2)
+        self.assertEqual(comparison["order_lines"]["documentsWritten"], 0)
+        self.assertEqual(comparison["customers"]["sourceRows"], comparison["customers"]["documentsWritten"])
+        self.assertEqual(comparison["addresses"]["sourceRows"], comparison["addresses"]["documentsWritten"])
+        self.assertEqual(comparison["products"]["sourceRows"], comparison["products"]["documentsWritten"])
 
     def test_unknown_invoke_when_writes_nothing(self):
         spec = copy.deepcopy(self.spec)
@@ -479,6 +507,12 @@ class SourceFileTests(unittest.TestCase):
         database = MemoryDatabase()
         calls = load(json.loads(SPEC_PATH.read_text(encoding="utf-8")), source, database, AnyGrok(), [])
         self.assertEqual(calls, 7)
+        comparison = {item["sourceTable"]: item for item in database.source_comparison}
+        self.assertEqual(comparison["customers"], {"sourceTable": "customers", "sourceRows": 10, "documentsWritten": 10})
+        self.assertEqual(comparison["addresses"]["documentsWritten"], 12)
+        self.assertEqual(comparison["products"]["documentsWritten"], 10)
+        self.assertEqual(comparison["orders"]["sourceRows"], comparison["orders"]["documentsWritten"])
+        self.assertEqual(comparison["order_lines"]["documentsWritten"], len(source["order_lines"]))
         self.assertEqual(database.count("customers"), 10)
         self.assertEqual(database.count("addresses"), 12)
         self.assertEqual(database.count("products"), 10)

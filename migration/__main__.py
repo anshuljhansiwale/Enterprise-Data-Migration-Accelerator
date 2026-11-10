@@ -69,6 +69,11 @@ def main(argv=None):
     created = [item["name"] for item in spec["indexPlan"]["indexes"] if item.get("create")]
     print("indexes", " ".join(created))
     print("rejects", len(rejects))
+    for item in getattr(database, "source_comparison", []):
+        print(
+            f"{item['sourceTable']} source-rows {item['sourceRows']} "
+            f"documents-written {item['documentsWritten']}"
+        )
     return 0
 
 
