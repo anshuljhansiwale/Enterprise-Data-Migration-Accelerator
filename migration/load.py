@@ -56,11 +56,18 @@ def load(spec, source, database, grok, rejects):
             )
 
     calls = 0
+    written = {}
     for collection in spec["documentModel"]["collections"]:
-        for document, call_count in _documents(spec, source, collection, grok, rejects, cache, digest):
+        for document, call_count, included in _documents(
+            spec, source, collection, grok, rejects, cache, digest
+        ):
             calls += call_count
-            if document is not None:
-                database.upsert(collection["name"], document)
+            if document is None:
+                continue
+            database.upsert(collection["name"], document)
+            for table_name, key in included:
+                written.setdefault(table_name, set()).add(_hashable_key(key))
+    database.source_comparison = _source_comparison(spec, source, written)
     return calls
 
 
@@ -127,10 +134,10 @@ def _documents(spec, source, collection, grok, rejects, cache, digest):
             _set_path(document, item["targetPath"], json.loads(raw))
 
         if failed:
-            yield None, calls
+            yield None, calls, []
             continue
         _keep_owned_subtype_fields(document, validation, discriminator)
-        yield document, calls
+        yield document, calls, _included_rows(spec, source, owner, row, mappings)
 
 
 def _owner(mappings):
@@ -153,9 +160,7 @@ def _owner(mappings):
 def _embed(spec, source, owner, row, mappings, prefix):
     parent = next(item for item in mappings if item["transform"] == "parent")
     elements = []
-    for child in source.get(parent["sourceTable"], []):
-        if child.get(parent["sourceColumn"]) != row.get(owner["sourceColumn"]):
-            continue
+    for child in _matching_children(source, owner, row, parent):
         element = {}
         for item in mappings:
             if item["sourceTable"] != parent["sourceTable"] or item["transform"] != "copy":
@@ -163,6 +168,57 @@ def _embed(spec, source, owner, row, mappings, prefix):
             _set_path(element, _element_field(item["targetPath"], prefix), _value(spec, item, child))
         elements.append(element)
     return elements
+
+
+def _matching_children(source, owner, row, parent):
+    return [
+        child
+        for child in source.get(parent["sourceTable"], [])
+        if child.get(parent["sourceColumn"]) == row.get(owner["sourceColumn"])
+    ]
+
+
+def _included_rows(spec, source, owner, row, mappings):
+    """Source rows written into this document. A rejected row is not included."""
+    included = [(owner["sourceTable"], _row_key(spec, owner["sourceTable"], row))]
+    if not _array_prefix(mappings):
+        return included
+    parent = next(item for item in mappings if item["transform"] == "parent")
+    for child in _matching_children(source, owner, row, parent):
+        included.append((parent["sourceTable"], _row_key(spec, parent["sourceTable"], child)))
+    return included
+
+
+def _row_key(spec, table_name, row):
+    columns = _table(spec, table_name).get("primaryKey") or []
+    if len(columns) == 1:
+        return row.get(columns[0])
+    if columns:
+        return tuple(row.get(column) for column in columns)
+    return None
+
+
+def _hashable_key(key):
+    if isinstance(key, list):
+        return tuple(_hashable_key(item) for item in key)
+    if isinstance(key, dict):
+        return tuple(sorted((name, _hashable_key(value)) for name, value in key.items()))
+    return key
+
+
+def _source_comparison(spec, source, written):
+    """Each source table's row count against the documents this load wrote for it."""
+    report = []
+    for table in spec["relationalModel"]["tables"]:
+        name = table["name"]
+        report.append(
+            {
+                "sourceTable": name,
+                "sourceRows": len(source.get(name, [])),
+                "documentsWritten": len(written.get(name, ())),
+            }
+        )
+    return report
 
 
 def _element_field(target_path, prefix):
