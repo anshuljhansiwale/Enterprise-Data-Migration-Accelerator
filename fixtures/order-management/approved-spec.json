@@ -31,7 +31,7 @@
         "primaryKey": [
           "customer_id"
         ],
-        "cardinalityNote": "About 500000 rows. Profile fields change rarely."
+        "cardinalityNote": "customers: about 500000 rows. Profile fields change rarely."
       },
       {
         "name": "addresses",
@@ -85,7 +85,7 @@
             "name": "is_current",
             "dataType": "NUMBER(1)",
             "nullable": false,
-            "notes": "CHECK (is_current IN (0, 1)). Default 1."
+            "notes": "CHECK (is_current IN (0, 1))"
           }
         ],
         "primaryKey": [
@@ -102,7 +102,7 @@
             ]
           }
         ],
-        "cardinalityNote": "About 3 per customer on average. History is retained with no declared upper bound. Address-book edits are independent of profile edits."
+        "cardinalityNote": "addresses: about 3 per customer on average. History is retained. No declared upper bound. Address-book edits are independent of profile edits."
       },
       {
         "name": "products",
@@ -121,7 +121,7 @@
             "name": "type",
             "dataType": "VARCHAR2(20)",
             "nullable": false,
-            "notes": "CHECK (type IN ('book', 'electronics', 'clothing')). Subtype discriminator."
+            "notes": "CHECK (type IN ('book', 'electronics', 'clothing')). type is a closed subtype discriminator."
           },
           {
             "name": "name",
@@ -182,7 +182,7 @@
             "sku"
           ]
         ],
-        "cardinalityNote": "About 20000 rows across book, electronics, and clothing."
+        "cardinalityNote": "products: about 20000 rows. type is a closed subtype discriminator."
       },
       {
         "name": "orders",
@@ -216,7 +216,7 @@
             "name": "notes",
             "dataType": "CLOB",
             "nullable": true,
-            "notes": "Free text from the customer or from support. No source schema."
+            "notes": "notes is free text from the customer or from support. It has no schema."
           }
         ],
         "primaryKey": [
@@ -242,7 +242,7 @@
             ]
           }
         ],
-        "cardinalityNote": "About 2000000 rows."
+        "cardinalityNote": "orders: about 2000000 rows. notes is free text from the customer or from support. It has no schema."
       },
       {
         "name": "order_lines",
@@ -296,7 +296,7 @@
             ]
           }
         ],
-        "cardinalityNote": "Average 3 per order. Observed maximum 40."
+        "cardinalityNote": "order_lines: average 3 per order, observed maximum 40."
       }
     ],
     "accessPaths": [
@@ -823,7 +823,14 @@
         "create": true
       }
     ],
-    "notes": "Three stated access paths and no measured slow-query log. evidence is stated-query. The script creates the two indexes with create true. The default _id index already serves q-order-by-id. No address index is proposed, because no access path reads the address book. No partial index is proposed, because no access path filters a subtype field. products.sku remains a unique key on the relational model only. This slice adds no unique index for it, because no access path looks up by sku."
+    "notes": [
+      "q-order-by-id is a point read on orders._id. The default _id index serves it, and lines and the customer snapshot are embedded, so no extra index is needed.",
+      "q-products-by-type-price puts equality on the discriminator type first, then priceCents ascending. That one key serves both the range filter and the sort, following ESR order.",
+      "q-recent-orders-by-customer uses the snapshot path customer.customerId (mapped from orders.customer_id) for equality, then placedAt descending for the sort.",
+      "products.sku is unique in Oracle, but no access path reads by sku, so it does not become an index.",
+      "The foreign keys shipAddressId, lines.productId and addresses.customerId get no index, because no stated access path filters on them.",
+      "All evidence is stated-query. No cluster was queried."
+    ]
   },
   "fieldMapping": {
     "mappings": [
@@ -1155,9 +1162,9 @@
   },
   "approval": {
     "status": "approved",
-    "approver": "migration architect",
-    "approvedAt": "2026-11-01T11:14:00Z",
+    "approver": "Anshul Jhansiwale",
+    "approvedAt": "2026-11-18T04:05:49Z",
     "changes": [],
-    "specHash": "e1c0c5cf130e3cd5471a811e7a5b3c0e529d8438348e7f5ba611382474347fba"
+    "specHash": "f23ad9d758ef531c687d7577c8d1a3b42adc713f27c8be75ba16282db073aa77"
   }
 }
