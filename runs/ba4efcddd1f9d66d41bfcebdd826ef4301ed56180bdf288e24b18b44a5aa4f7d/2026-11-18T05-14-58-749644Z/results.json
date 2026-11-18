@@ -1,0 +1,47 @@
+{
+  "specHash": "ba4efcddd1f9d66d41bfcebdd826ef4301ed56180bdf288e24b18b44a5aa4f7d",
+  "loggedAt": "2026-11-18T05-14-58-749644Z",
+  "testFiles": [
+    "test_load.py"
+  ],
+  "testsRun": 8,
+  "passed": 8,
+  "failures": 0,
+  "errors": 0,
+  "skipped": 0,
+  "ok": true,
+  "cases": [
+    {
+      "id": "tests.test_load.LoadTests.test_cli_checks_the_hash_before_a_load",
+      "status": "passed"
+    },
+    {
+      "id": "tests.test_load.LoadTests.test_embed_keeps_a_copy_path_without_a_dot",
+      "status": "passed"
+    },
+    {
+      "id": "tests.test_load.LoadTests.test_invalid_grok_output_is_rejected_and_not_loaded",
+      "status": "passed"
+    },
+    {
+      "id": "tests.test_load.LoadTests.test_lookup_matches_every_foreign_key_column",
+      "status": "passed"
+    },
+    {
+      "id": "tests.test_load.LoadTests.test_mappings_indexes_and_rerun",
+      "status": "passed"
+    },
+    {
+      "id": "tests.test_load.LoadTests.test_run_log_keeps_each_spec_hash",
+      "status": "passed"
+    },
+    {
+      "id": "tests.test_load.LoadTests.test_unapproved_or_mismatched_spec_writes_nothing",
+      "status": "passed"
+    },
+    {
+      "id": "tests.test_load.LoadTests.test_unknown_invoke_when_writes_nothing",
+      "status": "passed"
+    }
+  ]
+}
